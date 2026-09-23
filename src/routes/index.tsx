@@ -577,26 +577,31 @@ function Index() {
   const openDayPopup = (date: Date | undefined) => {
     if (!date || !referenceSunday || rows.length === 0) return;
     const offset = differenceInCalendarDays(date, referenceSunday);
-    const apre: ShiftEntry[] = [];
-    const chiude: ShiftEntry[] = [];
+    const dayEntries: ShiftEntry[] = [];
     for (const name of options) {
       const data = peopleByOffset.get(name)?.get(offset);
       if (!data) continue;
       const s = toMinutes(data.start);
       const e = toMinutes(data.end);
       if (s === null || e === null) continue;
-      const entry: ShiftEntry = { name, startLabel: data.start, endLabel: data.end, startMin: s, endMin: e };
-      if (s <= 10 * 60) apre.push(entry);
-      if (e >= 20 * 60) chiude.push(entry);
+      dayEntries.push({ name, startLabel: data.start, endLabel: data.end, startMin: s, endMin: e });
     }
+
+    const apre = dayEntries.filter((entry) => entry.startMin <= BASE_RANGE_START);
+
+    // "Chi chiude" è solo chi ha l'orario di chiusura più tardo di quel giorno specifico,
+    // non chiunque arrivi a una soglia fissa: se quel giorno c'è un turno fino alle 20:30,
+    // chi chiude alle 20:00 lo stesso giorno non compare più nell'elenco.
+    const maxEnd = dayEntries.reduce((max, entry) => Math.max(max, entry.endMin), 0);
+    const chiude = maxEnd >= BASE_RANGE_END ? dayEntries.filter((entry) => entry.endMin === maxEnd) : [];
+
     // Range della barra: l'inizio resta sempre fissato alle 10:00 (un turno che comincia
     // prima resta comunque segnalato in lista, ma sulla barra parte dal bordo sinistro).
     // La fine invece è dinamica: si allarga oltre le 20:00 se quel giorno c'è un turno che
     // chiude più tardi (es. venerdì/sabato alle 20:30), qualunque sia l'orario esatto.
-    const allEntries = [...apre, ...chiude];
     const barRange = {
       start: BASE_RANGE_START,
-      end: Math.max(BASE_RANGE_END, ...allEntries.map((e) => e.endMin)),
+      end: Math.max(BASE_RANGE_END, maxEnd),
     };
     setDayPopup({ date, apre, chiude, barRange });
   };

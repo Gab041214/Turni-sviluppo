@@ -235,9 +235,22 @@ type DayData = {
 } | null;
 type WeekData = { monday: Date | undefined; days: DayData[] };
 
+/**
+ * Confronta il nominativo del calendario con il valore della cella Excel in modo
+ * tollerante: normalizza entrambi (minuscolo, spazi multipli ridotti) e considera
+ * corrispondenza anche se uno dei due è contenuto nell'altro — così "Rossi" trova
+ * una cella "Mario Rossi", e viceversa.
+ */
+function nameMatches(cellValue: string, selected: string): boolean {
+  const cell = norm(cellValue);
+  const sel = norm(selected);
+  if (!sel || !cell) return false;
+  return cell === sel || cell.includes(sel) || sel.includes(cell);
+}
+
 /** Ricostruisce la mappa offset -> turno (Sunday=0, Mon..Sat=1..6, poi +7 per ogni riga) per un nominativo. */
 function offsetMapForName(rows: string[][], name: string): Map<number, DayData> {
-  const matching = rows.filter((r) => (r[1] ?? "").trim() === name);
+  const matching = rows.filter((r) => nameMatches(r[1] ?? "", name));
   const byOffset = new Map<number, DayData>();
   matching.forEach((row, i) => {
     const base = i * 7;
@@ -528,7 +541,7 @@ function Index() {
 
   const weeks: WeekData[] = useMemo(() => {
     if (!selected || rows.length === 0) return [];
-    const matching = rows.filter((r) => (r[1] ?? "").trim() === selected);
+    const matching = rows.filter((r) => nameMatches(r[1] ?? "", selected));
 
     // Each CSV row covers Sunday -> Saturday starting from the reference Sunday.
     // key = day offset from the reference Sunday

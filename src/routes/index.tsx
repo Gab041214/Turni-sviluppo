@@ -248,6 +248,21 @@ function nameMatches(cellValue: string, selected: string): boolean {
   return cell === sel || cell.includes(sel) || sel.includes(cell);
 }
 
+/**
+ * Distingue un nominativo vero da tutto il resto che compare nella colonna B
+ * (intestazioni, etichette "Settimana N", testo del template, celle vuote/numeriche):
+ * i nomi veri sono scritti "Nome Proprio" (iniziale maiuscola, resto minuscolo),
+ * mentre le etichette da scartare sono o tutte in MAIUSCOLO o senza lettere.
+ */
+function looksLikeRealName(raw: string): boolean {
+  const v = raw.trim();
+  if (!v) return false;
+  if (!/[a-zà-ÿ]/i.test(v)) return false; // nessuna lettera (es. "0")
+  if (/^settimana\s*\d+$/i.test(v)) return false; // "Settimana 1", "Settimana 2"...
+  if (v === v.toUpperCase()) return false; // tutto maiuscolo = intestazione/ruolo, non un nome
+  return true;
+}
+
 /** Ricostruisce la mappa offset -> turno (Sunday=0, Mon..Sat=1..6, poi +7 per ogni riga) per un nominativo. */
 function offsetMapForName(rows: string[][], name: string): Map<number, DayData> {
   const matching = rows.filter((r) => nameMatches(r[1] ?? "", name));
@@ -431,6 +446,9 @@ function Index() {
     barRange: { start: number; end: number };
   } | null>(null);
   const [newOption, setNewOption] = useState("");
+  // Nominativi suggeriti dall'ultimo file caricato ma non ancora in elenco; "Ignora" li nasconde
+  // finché non si carica un nuovo file (vedi reset in handleFile).
+  const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(new Set());
   const [accent, setAccent] = useState(DEFAULT_ACCENT);
   const setAccentColor = (c: string) => {
     setAccent(c);
@@ -517,6 +535,7 @@ function Index() {
     await clearPreviousFileCache();
     setRows([]);
     setFileName(null);
+    setDismissedSuggestions(new Set());
     const parsed = await parseExcel(file);
     setRows(parsed.rows);
     setMonth(parsed.month);
@@ -577,6 +596,23 @@ function Index() {
     });
   }, [rows, selected, month, gridStart]);
 
+
+  // Nominativi trovati nella colonna B del file ma non ancora presenti nell'elenco voci
+  // (né coperti, anche parzialmente, da uno già presente) e non ignorati dall'utente.
+  const suggestedNames = useMemo(() => {
+    if (rows.length === 0) return [];
+    const seen = new Set<string>();
+    const candidates: string[] = [];
+    for (const r of rows) {
+      const raw = (r[1] ?? "").trim();
+      if (!looksLikeRealName(raw)) continue;
+      const key = norm(raw);
+      if (seen.has(key) || dismissedSuggestions.has(key)) continue;
+      seen.add(key);
+      candidates.push(raw);
+    }
+    return candidates.filter((name) => !options.some((o) => nameMatches(name, o)));
+  }, [rows, options, dismissedSuggestions]);
 
   // Mappa offset -> turno per ogni nominativo presente nell'elenco voci (non solo il selezionato).
   const peopleByOffset = useMemo(() => {
@@ -781,6 +817,38 @@ function Index() {
 
             {fileName && (
               <p className="mt-2 truncate text-xs text-muted-foreground">File caricato: {fileName}</p>
+            )}
+
+            {suggestedNames.length > 0 && (
+              <div className="mt-2 rounded-xl border border-border/60 bg-secondary/60 p-2.5">
+                <div className="mb-1.5 flex items-center justify-between gap-2">
+                  <span className="text-xs text-muted-foreground">Nominativi trovati nel file, non in elenco:</span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setDismissedSuggestions(
+                        (prev) => new Set([...prev, ...suggestedNames.map((n) => norm(n))]),
+                      )
+                    }
+                    className="shrink-0 text-xs text-muted-foreground underline"
+                  >
+                    Ignora
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {suggestedNames.map((name) => (
+                    <button
+                      key={name}
+                      type="button"
+                      onClick={() => persist([...options, name])}
+                      className="flex items-center gap-1 rounded-full border border-border bg-card px-2.5 py-1 text-xs text-foreground"
+                    >
+                      <Plus className="size-3" />
+                      {name}
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
           {weeks.length > 0 && (

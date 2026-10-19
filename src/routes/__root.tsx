@@ -11,6 +11,7 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { registerServiceWorker } from "../lib/register-sw";
+import { themeInitScript } from "../lib/theme";
 
 
 function NotFoundComponent() {
@@ -94,6 +95,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:image", content: "/icon-512.png" },
       { name: "twitter:image", content: "/icon-512.png" },
     ],
+    // Applica subito il tema salvato (chiaro/scuro) prima del primo disegno, senza lampi.
+    scripts: [{ children: themeInitScript }],
     links: [
       {
         rel: "stylesheet",
@@ -113,7 +116,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="it" suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>

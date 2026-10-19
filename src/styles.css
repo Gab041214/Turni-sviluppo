@@ -63,6 +63,22 @@
 
 :root {
   --radius: 0.625rem;
+  /* Colori specifici dell'app (sfondo pagina, cornice settimana, chip, date, barre) */
+  --app-bg: #D8D8DE;
+  --app-week: #ECECF0;
+  --app-tile: oklch(1 0 0);
+  --app-tile-chip: oklch(0.968 0.007 247.896);
+  --app-chip: #E1E1E6;
+  --app-date: #5c5c5c;
+  --app-track: #ffffff;
+  --app-upload: #003335;
+  --app-switch-off: #c7c7cc;
+  /* Finestre in stile iOS: sfondo semitrasparente sfocato */
+  --glass: rgba(255, 255, 255, 0.66);
+  --glass-bd: rgba(255, 255, 255, 0.7);
+  --glass-chip: rgba(120, 120, 128, 0.14);
+  --glass-sep: rgba(60, 60, 67, 0.14);
+  --glass-shadow: 0 14px 44px rgba(0, 0, 0, 0.22);
   --background: oklch(1 0 0);
   --foreground: oklch(0.129 0.042 264.695);
   --card: oklch(1 0 0);
@@ -98,6 +114,21 @@
 }
 
 .dark {
+  color-scheme: dark;
+  --app-bg: oklch(0.129 0.042 264.695);
+  --app-week: oklch(0.18 0.04 265);
+  --app-tile: oklch(0.27 0.04 265);
+  --app-tile-chip: oklch(0.37 0.04 262);
+  --app-chip: oklch(0.279 0.041 260.031);
+  --app-date: oklch(0.75 0.03 257);
+  --app-track: oklch(0.38 0.04 260);
+  --app-upload: #4f5f70;
+  --app-switch-off: #45556c;
+  --glass: rgba(44, 52, 74, 0.62);
+  --glass-bd: rgba(255, 255, 255, 0.14);
+  --glass-chip: rgba(255, 255, 255, 0.12);
+  --glass-sep: rgba(255, 255, 255, 0.12);
+  --glass-shadow: 0 14px 44px rgba(0, 0, 0, 0.45);
   --background: oklch(0.129 0.042 264.695);
   --foreground: oklch(0.984 0.003 247.858);
   --card: oklch(0.208 0.042 265.755);
@@ -146,4 +177,95 @@
 @theme {
   --color-shift-late: #00B5CE;
   --color-shift-day: #d9eb37;
+}
+
+/*
+ * Finestre in stile iOS: sfondo semitrasparente con sfocatura, angoli molto arrotondati e animazione
+ * di apertura che parte dal punto del tocco (macchia piccola che cresce, con un lieve rimbalzo).
+ * La sfocatura animata si usa solo su iOS/Safari; altrove l'animazione è la stessa senza sfocatura.
+ */
+@layer components {
+  .glass {
+    background: var(--glass);
+    -webkit-backdrop-filter: blur(26px) saturate(1.7);
+    backdrop-filter: blur(26px) saturate(1.7);
+    border: 1px solid var(--glass-bd);
+    box-shadow: var(--glass-shadow);
+  }
+  /* Pulsanti "Aggiungi prima / Aggiungi dopo / Tutto il turno": 13px su iOS (invariato), 12px altrove
+     perché su Android (Huawei) la "a" finale usciva appena dal bordo. */
+  .seg-label {
+    font-size: 12px;
+  }
+  @supports (-webkit-touch-callout: none) {
+    .seg-label {
+      font-size: 13px;
+    }
+  }
+}
+
+@keyframes ios-in {
+  0% { opacity: 0; transform: scale(0.16); }
+  55% { opacity: 1; transform: scale(1.035); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes ios-out {
+  0% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.4); }
+}
+@keyframes ios-hold {
+  from { opacity: 1; }
+  to { opacity: 1; }
+}
+@supports (-webkit-touch-callout: none) {
+  @keyframes ios-in {
+    0% { opacity: 0; transform: scale(0.16); filter: blur(16px); }
+    55% { opacity: 1; transform: scale(1.035); filter: blur(1.5px); }
+    100% { opacity: 1; transform: scale(1); filter: none; }
+  }
+  @keyframes ios-out {
+    0% { opacity: 1; transform: scale(1); filter: none; }
+    100% { opacity: 0; transform: scale(0.4); filter: blur(8px); }
+  }
+}
+
+/* Piccole finestre (turno originale, straordinario): solo apertura */
+.ios-in {
+  animation: ios-in 0.38s cubic-bezier(0.2, 0.9, 0.25, 1) backwards;
+}
+
+/* Menu a comparsa (Radix Popover): l'origine è il pulsante che li apre */
+.ios-pop {
+  transform-origin: var(--radix-popover-content-transform-origin);
+}
+.ios-pop[data-state="open"] {
+  animation: ios-in 0.38s cubic-bezier(0.2, 0.9, 0.25, 1) backwards;
+}
+.ios-pop[data-state="closed"] {
+  animation: ios-out 0.18s ease-in forwards;
+}
+
+/*
+ * Pop-up del giorno (Radix Dialog): il contenitore resta fermo (un genitore con opacità o filtro
+ * toglierebbe la sfocatura ai figli) e animano le singole schede ".ios-card".
+ */
+.ios-dialog[data-state="closed"] {
+  animation: ios-hold 0.18s linear forwards;
+}
+.ios-dialog[data-state="open"] .ios-card {
+  transform-origin: 50% 0;
+  animation: ios-in 0.38s cubic-bezier(0.2, 0.9, 0.25, 1) backwards;
+}
+.ios-dialog[data-state="closed"] .ios-card {
+  transform-origin: 50% 0;
+  animation: ios-out 0.18s ease-in forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ios-in,
+  .ios-pop[data-state],
+  .ios-dialog[data-state] .ios-card,
+  .ios-dialog[data-state="closed"] {
+    animation: none;
+  }
 }

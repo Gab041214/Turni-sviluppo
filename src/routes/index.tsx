@@ -643,6 +643,11 @@ function Index() {
     return () => document.removeEventListener("pointerdown", onDown, true);
   }, []);
 
+  // Pop-up del giorno: con "Modifica" o "Straordinario" aperto la scheda Apertura/Chiusura si riduce alla sola
+  // data, così tutto sta nello schermo senza scorrimento (un contenitore scorrevole con vetro sfocato fa
+  // comparire su Safari un rettangolo grigio attorno al pop-up).
+  const [panelOpen, setPanelOpen] = useState(false);
+
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
@@ -2010,36 +2015,50 @@ function Index() {
 
       <Dialog open={!!dayPopup} onOpenChange={(o) => !o && setPopupDate(null)}>
         <DialogContent
-          className="top-[max(1rem,calc(50dvh-380px))] max-h-[calc(100dvh-2rem)] w-[360px] max-w-[calc(100vw-1rem)] translate-y-0 gap-3.5 overflow-y-auto border-0 bg-transparent px-2 pb-3 pt-0 shadow-none sm:rounded-none"
+          className="top-[max(1rem,calc(50dvh-380px))] max-h-[calc(100dvh-2rem)] w-[360px] max-w-[calc(100vw-1rem)] translate-y-0 gap-3.5 border-0 bg-transparent px-2 pb-3 pt-0 shadow-none sm:rounded-none"
           showCloseButton={false}
           onOpenAutoFocus={(e) => e.preventDefault()}
         >
           <div className="ios-card glass rounded-[28px] p-5">
-            <DialogTitle className="mb-3 whitespace-nowrap text-lg font-semibold leading-tight tracking-normal">
+            <DialogTitle className="whitespace-nowrap text-lg font-semibold leading-tight tracking-normal">
               {dayPopup ? dateCapitalized(dayPopup.date, "EEEE d MMMM") : ""}
             </DialogTitle>
 
-            <h3 className="mb-1.5 text-base font-normal text-foreground">Apertura</h3>
-            {dayPopup && dayPopup.apre.length > 0 ? (
-              <ul className="mb-4 space-y-1">
-                {dayPopup.apre.map((entry) => (
-                  <ShiftRow key={entry.name} entry={entry} range={dayPopup.barRange} accent={accent} />
-                ))}
-              </ul>
-            ) : (
-              <p className="mb-4 text-sm text-muted-foreground">Nessuno.</p>
-            )}
+            {/* Le righe si chiudono (altezza e dissolvenza) quando si apre un pannello di modifica */}
+            <div
+              className={cn(
+                "grid transition-[grid-template-rows,opacity] duration-300 ease-out",
+                panelOpen ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100",
+              )}
+              aria-hidden={panelOpen}
+              inert={panelOpen}
+            >
+              <div className="min-h-0 overflow-hidden">
+                <div className="pt-3">
+                  <h3 className="mb-1.5 text-base font-normal text-foreground">Apertura</h3>
+                  {dayPopup && dayPopup.apre.length > 0 ? (
+                    <ul className="mb-4 space-y-1">
+                      {dayPopup.apre.map((entry) => (
+                        <ShiftRow key={entry.name} entry={entry} range={dayPopup.barRange} accent={accent} />
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mb-4 text-sm text-muted-foreground">Nessuno.</p>
+                  )}
 
-            <h3 className="mb-1.5 text-base font-normal text-foreground">Chiusura</h3>
-            {dayPopup && dayPopup.chiude.length > 0 ? (
-              <ul className="space-y-1">
-                {dayPopup.chiude.map((entry) => (
-                  <ShiftRow key={entry.name} entry={entry} range={dayPopup.barRange} accent={accent} />
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-muted-foreground">Nessuno.</p>
-            )}
+                  <h3 className="mb-1.5 text-base font-normal text-foreground">Chiusura</h3>
+                  {dayPopup && dayPopup.chiude.length > 0 ? (
+                    <ul className="space-y-1">
+                      {dayPopup.chiude.map((entry) => (
+                        <ShiftRow key={entry.name} entry={entry} range={dayPopup.barRange} accent={accent} />
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Nessuno.</p>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
 
           {dayPopup && canEditShift && (
@@ -2063,6 +2082,7 @@ function Index() {
               onResetShift={() => changeOverride((cur) => ({ ot: cur.ot }))}
               onSaveOvertime={(ot: Overtime) => changeOverride((cur) => ({ ...cur, ot }))}
               onRemoveOvertime={() => changeOverride((cur) => ({ rest: cur.rest, start: cur.start, end: cur.end }))}
+              onOpenChange={setPanelOpen}
             />
           )}
         </DialogContent>

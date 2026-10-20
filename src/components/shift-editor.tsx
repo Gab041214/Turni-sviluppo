@@ -64,6 +64,7 @@ export function DayEditPanels({
   onResetShift,
   onSaveOvertime,
   onRemoveOvertime,
+  onOpenChange,
 }: {
   subtitle: string;
   /** Turno scritto nel file (null se il giorno è vuoto). */
@@ -77,15 +78,15 @@ export function DayEditPanels({
   onResetShift: () => void;
   onSaveOvertime: (ot: Overtime) => void;
   onRemoveOvertime: () => void;
+  /** Avvisa il pop-up quando un pannello si apre o si chiude (la scheda Apertura/Chiusura si riduce). */
+  onOpenChange?: (open: boolean) => void;
 }) {
   const [panel, setPanel] = useState<Panel>("closed");
   const cardRef = useRef<HTMLDivElement>(null);
-  // Su schermi bassi il pannello aperto può finire sotto il bordo: lo porta in vista solo se non è già visibile.
   useEffect(() => {
-    if (panel === "closed") return;
-    const t = setTimeout(() => cardRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }), 230);
-    return () => clearTimeout(t);
-  }, [panel]);
+    onOpenChange?.(panel !== "closed");
+    return () => onOpenChange?.(false);
+  }, [panel, onOpenChange]);
   const [draft, setDraft] = useState<ShiftDraft>(() => draftFromShift(override, fileShift));
   const [otDraft, setOtDraft] = useState<OtDraft>(() => otDraftFrom(override?.ot, ordinary));
 

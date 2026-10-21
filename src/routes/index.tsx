@@ -1,10 +1,21 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from "react";
-import { Trash2, Users, Keyboard, Plus, ChevronDown, Check, Sun, Moon, Monitor, Settings, FileText, ArrowRight, ArrowLeftRight, X } from "lucide-react";
+import { Trash2, Users, Keyboard, Plus, ChevronDown, ChevronLeft, ChevronRight, Check, Sun, Moon, Monitor, Settings, FileText, ArrowRight, ArrowLeftRight, X } from "lucide-react";
 import { format, addDays, isToday, startOfMonth, endOfMonth, isSameMonth, startOfWeek, getDay, differenceInCalendarWeeks, differenceInCalendarDays, getDaysInMonth, subMonths } from "date-fns";
 import { it } from "date-fns/locale";
 
 import { aliasLookup, loadAliases, saveAliases, similarNames, withAlias, type Alias } from "@/lib/aliases";
+import {
+  CLOSE_RANGE,
+  HOURS_STEP,
+  OPEN_RANGE,
+  effectiveHours,
+  inferHours,
+  loadHoursOverrides,
+  saveHoursOverrides,
+  weekdayIndex,
+  type HoursOverrides,
+} from "@/lib/hours";
 import { Button } from "@/components/ui/button";
 
 
@@ -32,7 +43,7 @@ import {
   type DayOverride,
   type OverrideStore,
 } from "@/lib/overrides";
-import { formatHours, overallTimes, shiftFromTimes, shiftWithOvertime, toMinutes, type DayData, type Overtime } from "@/lib/shifts";
+import { formatHours, minutesToTime, overallTimes, shiftFromTimes, shiftWithOvertime, toMinutes, type DayData, type Overtime } from "@/lib/shifts";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -563,8 +574,32 @@ function Index() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [overtimeOpen, setOvertimeOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  // "Altre opzioni" (nomi associati): contratta a ogni apertura del menu.
+  // "Gestione nomi" (nomi associati): contratta a ogni apertura del menu.
   const [moreOpen, setMoreOpen] = useState(false);
+  // "Orari di esercizio": correzioni dell'utente (il resto è dedotto dai file) e sezione aperta/chiusa.
+  const [hoursOverrides, setHoursOverrides] = useState<HoursOverrides>({});
+  const [hoursOpen, setHoursOpen] = useState(false);
+  // Una sola sezione aperta alla volta: Report e backup, Orari di esercizio e Gestione nomi sono alla pari,
+  // aprirne una chiude le altre ("Straordinari" è dentro Report e backup).
+  const toggleOvertime = () => setOvertimeOpen((o) => !o);
+  const toggleAdvanced = () => {
+    setAdvancedOpen((o) => !o);
+    setOvertimeOpen(false);
+    setMoreOpen(false);
+    setHoursOpen(false);
+  };
+  const toggleHours = () => {
+    setHoursOpen((o) => !o);
+    setAdvancedOpen(false);
+    setOvertimeOpen(false);
+    setMoreOpen(false);
+  };
+  const toggleMore = () => {
+    setMoreOpen((o) => !o);
+    setAdvancedOpen(false);
+    setOvertimeOpen(false);
+    setHoursOpen(false);
+  };
   // Nomi collegati (grafia nel file -> nome in elenco) e relativi pannelli.
   const [aliases, setAliases] = useState<Alias[]>([]);
   const aliasMap = useMemo(() => aliasLookup(aliases), [aliases]);
@@ -579,6 +614,15 @@ function Index() {
   const [linkFormOpen, setLinkFormOpen] = useState(false);
   const [linkFrom, setLinkFrom] = useState("");
   const [linkTo, setLinkTo] = useState("");
+  const clearLinkForm = () => {
+    setLinkFrom("");
+    setLinkTo("");
+    setLinkFormOpen(false);
+  };
+  // Il modulo si svuota anche quando "Gestione nomi" si chiude (o si chiude il menu Impostazioni).
+  useEffect(() => {
+    if (!moreOpen) clearLinkForm();
+  }, [moreOpen]);
   // Esito dell'ultima esportazione/importazione delle modifiche, mostrato sotto i pulsanti.
   const [backupNote, setBackupNote] = useState<{ title: string; body: string } | null>(null);
   const backupRef = useRef<HTMLInputElement>(null);
@@ -658,6 +702,7 @@ function Index() {
       if (Number.isInteger(acc) && acc >= 0 && acc < ACCENT_PAIRS.length) setAccentIdx(acc);
       setOverrides(loadOverrides());
       setAliases(loadAliases());
+      setHoursOverrides(loadHoursOverrides());
       setFiles(loadFiles());
       const sel = localStorage.getItem(SELECTED_KEY);
       if (sel) setSelected(sel);
@@ -996,6 +1041,55 @@ function Index() {
     setPopupDate(date);
   };
 
+  // Apertura e chiusura dedotte dai file: per ogni giorno dei file il primo ingresso e l'ultima uscita, raccolti per giorno della settimana.
+  const inferredHours = useMemo(() => {
+    const lastEnd = new Map<string, { weekday: number; starts: number[]; end: number }>();
+    for (const f of fileList) {
+      const perName = mapsByFile.get(f.key);
+      if (!perName) continue;
+      for (let off = 0; off < f.weeks * 7; off++) {
+        let end = 0;
+        const dayStarts: number[] = [];
+        for (const map of perName.values()) {
+          const data = map.get(off);
+          if (!data) continue;
+          const t = overallTimes(data);
+          const s = toMinutes(t.start);
+          const e = toMinutes(t.end);
+          if (s !== null) dayStarts.push(s);
+          if (e !== null && e > end) end = e;
+        }
+        if (end === 0 || dayStarts.length === 0) continue;
+        const date = addDays(f.anchor, off);
+        lastEnd.set(dayKey(date), { weekday: weekdayIndex(date), starts: dayStarts, end });
+      }
+    }
+    const starts: number[][] = Array.from({ length: 7 }, () => []);
+    const ends: number[][] = Array.from({ length: 7 }, () => []);
+    for (const { weekday, starts: dayStarts, end } of lastEnd.values()) {
+      starts[weekday].push(...dayStarts);
+      ends[weekday].push(end);
+    }
+    return inferHours(starts, ends);
+  }, [fileList, mapsByFile]);
+  const hours = useMemo(() => effectiveHours(hoursOverrides, inferredHours), [hoursOverrides, inferredHours]);
+  // Attivo solo se qualche orario è diverso da quello dedotto dai file.
+  const hoursModified = useMemo(() => {
+    const base = effectiveHours({}, inferredHours);
+    return hours.some((h, i) => h.open !== base[i].open || h.close !== base[i].close);
+  }, [hours, inferredHours]);
+  const changeHours = (day: number, field: "open" | "close", delta: number) => {
+    const [lo, hi] = field === "open" ? OPEN_RANGE : CLOSE_RANGE;
+    const value = Math.min(hi, Math.max(lo, hours[day][field] + delta));
+    const next = { ...hoursOverrides, [String(day)]: { ...hoursOverrides[String(day)], [field]: value } };
+    setHoursOverrides(next);
+    saveHoursOverrides(next);
+  };
+  const resetHours = () => {
+    setHoursOverrides({});
+    saveHoursOverrides({});
+  };
+
   // Elenchi "Apertura"/"Chiusura" del giorno aperto, ricalcolati anche quando cambia una modifica manuale.
   const dayPopup = useMemo(() => {
     if (!popupDate) return null;
@@ -1012,21 +1106,19 @@ function Index() {
       dayEntries.push({ name, startLabel: start, endLabel: end, startMin: s, endMin: e, modified: !!ov });
     }
 
-    const apre = dayEntries.filter((entry) => entry.startMin <= BASE_RANGE_START);
-
-    // "Chiusura" è solo chi ha l'orario di chiusura più tardo di quel giorno specifico,
-    // non chiunque arrivi a una soglia fissa: se quel giorno c'è un turno fino alle 20:30,
-    // chi chiude alle 20:00 lo stesso giorno non compare più nell'elenco.
+    // Apertura e chiusura del giorno della settimana (Orari di esercizio): in "Apertura" chi comincia
+    // entro l'orario di apertura, in "Chiusura" chi finisce all'orario di chiusura o più tardi.
+    const { open, close } = hours[weekdayIndex(popupDate)];
+    const apre = dayEntries.filter((entry) => entry.startMin <= open);
     const maxEnd = dayEntries.reduce((max, entry) => Math.max(max, entry.endMin), 0);
-    const chiude = maxEnd >= BASE_RANGE_END ? dayEntries.filter((entry) => entry.endMin === maxEnd) : [];
+    const chiude = dayEntries.filter((entry) => entry.endMin >= close);
 
-    // Range della barra: l'inizio resta sempre fissato alle 10:00 (un turno che comincia
-    // prima resta comunque segnalato in lista, ma sulla barra parte dal bordo sinistro).
-    // La fine invece è dinamica: si allarga oltre le 20:00 se quel giorno c'è un turno che
-    // chiude più tardi (es. venerdì/sabato alle 20:30), qualunque sia l'orario esatto.
-    const barRange = { start: BASE_RANGE_START, end: Math.max(BASE_RANGE_END, maxEnd) };
+    // Range della barra: parte dall'apertura del giorno (un turno che comincia prima resta comunque
+    // segnalato in lista, ma sulla barra parte dal bordo sinistro) e finisce alla chiusura, o più tardi
+    // se quel giorno c'è un turno che finisce dopo.
+    const barRange = { start: open, end: Math.max(close, maxEnd) };
     return { date: popupDate, apre, chiude, barRange };
-  }, [popupDate, options, resolveDay, overrideFor]);
+  }, [popupDate, options, resolveDay, overrideFor, hours]);
 
   // Turno del nominativo selezionato come scritto nel file, per il giorno aperto.
   const selectedFileShift: DayData = useMemo(() => {
@@ -1326,6 +1418,7 @@ function Index() {
                       setOvertimeOpen(false);
                       setAdvancedOpen(false);
                       setMoreOpen(false);
+                      setHoursOpen(false);
                       setBackupNote(null);
                     }
                   }}
@@ -1377,21 +1470,47 @@ function Index() {
                         />
                       ))}
                     </div>
-                    <div className="-mx-3.5 my-3 h-px bg-[var(--glass-sep)]" />
+                    <div className="-mx-3.5 mt-3 mb-0.5 h-px bg-[var(--glass-sep)]" />
+                    <button
+                      type="button"
+                      aria-expanded={advancedOpen}
+                      onClick={toggleAdvanced}
+                      className="flex min-h-11 w-full items-center justify-start gap-1 whitespace-nowrap px-2.5 text-[13px] font-semibold text-foreground"
+                    >
+                      Report e backup
+                      <ChevronDown className={cn("size-4 shrink-0 transition-transform duration-200", advancedOpen && "rotate-180")} />
+                    </button>
+                    {advancedOpen && (
+                      <div className="animate-in fade-in-0 slide-in-from-top-1 pt-1 duration-200 motion-reduce:animate-none">
                     <p className="mb-1.5 text-xs font-medium text-muted-foreground">Mese</p>
-                    <div className="mb-1.5 rounded-[14px]" style={{ backgroundColor: "var(--glass-chip)" }}>
+                    <div className="flex items-center gap-2">
                       <button
                         type="button"
                         disabled={!hasMonth}
                         aria-expanded={overtimeOpen}
-                        onClick={() => setOvertimeOpen((o) => !o)}
-                        className="flex min-h-11 w-full items-center justify-between px-2.5 text-left text-sm font-semibold text-foreground disabled:opacity-40"
+                        onClick={toggleOvertime}
+                        className="flex min-h-11 min-w-0 flex-1 items-center justify-between gap-1 rounded-[14px] px-2.5 text-left text-sm font-semibold text-foreground disabled:opacity-40"
+                        style={{ backgroundColor: "var(--glass-chip)" }}
                       >
-                        Straordinari del mese
+                        Straordinari
                         <ChevronDown className={cn("size-4 shrink-0 transition-transform duration-200", overtimeOpen && "rotate-180")} />
                       </button>
+                      <button
+                        type="button"
+                        disabled={!hasMonth}
+                        onClick={generatePdf}
+                        className="flex min-h-11 min-w-0 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-[14px] px-2 text-sm font-semibold text-foreground disabled:opacity-40"
+                        style={{ backgroundColor: "var(--glass-chip)" }}
+                      >
+                        <FileText className="size-4 shrink-0" />
+                        Genera PDF
+                      </button>
+                    </div>
                       {overtimeOpen && hasMonth && (
-                        <div className="animate-in fade-in-0 slide-in-from-top-1 px-2.5 pb-2 duration-200 motion-reduce:animate-none">
+                        <div
+                          className="animate-in fade-in-0 slide-in-from-top-1 mt-1.5 rounded-[14px] px-2.5 py-2 duration-200 motion-reduce:animate-none"
+                          style={{ backgroundColor: "var(--glass-chip)" }}
+                        >
                           <p className="pb-0.5 text-xs text-muted-foreground">
                             {selected} · {month ? format(month, "MMMM", { locale: it }).replace(/^./, (c) => c.toUpperCase()) : ""}
                           </p>
@@ -1421,33 +1540,6 @@ function Index() {
                           )}
                         </div>
                       )}
-                    </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <button
-                        type="button"
-                        disabled={!hasMonth}
-                        onClick={generatePdf}
-                        className="flex min-h-11 w-[calc(50%-4px)] items-center justify-center gap-2 whitespace-nowrap rounded-[14px] px-2 text-sm font-semibold text-foreground disabled:opacity-40"
-                        style={{ backgroundColor: "var(--glass-chip)" }}
-                      >
-                        <FileText className="size-4 shrink-0" />
-                        Genera PDF
-                      </button>
-                      <button
-                        type="button"
-                        aria-expanded={advancedOpen}
-                        onClick={() => {
-                          setAdvancedOpen((o) => !o);
-                          setMoreOpen(false);
-                        }}
-                        className="flex min-h-11 min-w-0 flex-1 items-center justify-center gap-1 whitespace-nowrap px-1 text-[13px] font-semibold text-foreground"
-                      >
-                        Opzioni avanzate
-                        <ChevronDown className={cn("size-4 shrink-0 transition-transform duration-200", advancedOpen && "rotate-180")} />
-                      </button>
-                    </div>
-                    {advancedOpen && (
-                      <div className="animate-in fade-in-0 slide-in-from-top-1 duration-200 motion-reduce:animate-none">
                         <div className="-mx-3.5 my-2.5 h-px bg-[var(--glass-sep)]" />
                         <p className="mb-1.5 text-xs font-medium text-muted-foreground">Modifiche e straordinari</p>
                         <input
@@ -1485,14 +1577,80 @@ function Index() {
                             <p className="text-muted-foreground">{backupNote.body}</p>
                           </div>
                         )}
+                      </div>
+                    )}
+                        <div className="-mx-3.5 mt-2.5 mb-0.5 h-px bg-[var(--glass-sep)]" />
+                        <button
+                          type="button"
+                          aria-expanded={hoursOpen}
+                          onClick={toggleHours}
+                          className="flex min-h-11 w-full items-center justify-start gap-1 whitespace-nowrap px-2.5 text-[13px] font-semibold text-foreground"
+                        >
+                          Orari di esercizio
+                          <ChevronDown className={cn("size-4 shrink-0 transition-transform duration-200", hoursOpen && "rotate-180")} />
+                        </button>
+                        {hoursOpen && (
+                          <div className="animate-in fade-in-0 slide-in-from-top-1 pt-1 duration-200 motion-reduce:animate-none">
+                            <div className="mb-1.5 flex gap-1.5 pl-2.5 pr-1.5 text-xs font-medium text-muted-foreground">
+                              <span className="flex-1" />
+                              <span className="w-[88px] text-center">Apertura</span>
+                              <span className="w-1.5" />
+                              <span className="w-[88px] text-center">Chiusura</span>
+                            </div>
+                            {["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"].map((label, i) => (
+                              <div
+                                key={label}
+                                className="mb-1 flex min-h-10 items-center gap-1.5 rounded-[14px] pl-2.5 pr-1.5 text-sm text-foreground"
+                                style={{ backgroundColor: "var(--glass-chip)" }}
+                              >
+                                <span className="flex-1 font-semibold">{label}</span>
+                                {(["open", "close"] as const).map((field, j) => (
+                                  <span key={field} className="contents">
+                                    {j === 1 && <span className="text-muted-foreground">–</span>}
+                                    <span className="flex items-center rounded-lg bg-card shadow-sm">
+                                      <button
+                                        type="button"
+                                        aria-label={`${label}, ${field === "open" ? "apertura" : "chiusura"}: 30 minuti prima`}
+                                        onClick={() => changeHours(i, field, -HOURS_STEP)}
+                                        className="flex h-[30px] w-6 items-center justify-center"
+                                      >
+                                        <ChevronLeft className="size-3.5" />
+                                      </button>
+                                      <span className="min-w-10 text-center tabular-nums">{minutesToTime(hours[i][field])}</span>
+                                      <button
+                                        type="button"
+                                        aria-label={`${label}, ${field === "open" ? "apertura" : "chiusura"}: 30 minuti dopo`}
+                                        onClick={() => changeHours(i, field, HOURS_STEP)}
+                                        className="flex h-[30px] w-6 items-center justify-center"
+                                      >
+                                        <ChevronRight className="size-3.5" />
+                                      </button>
+                                    </span>
+                                  </span>
+                                ))}
+                              </div>
+                            ))}
+                            <Button
+                              disabled={!hoursModified}
+                              className="mt-0.5 w-full rounded-xl text-[13px] text-white hover:opacity-90"
+                              style={{ backgroundColor: "var(--app-upload)" }}
+                              onClick={resetHours}
+                            >
+                              Ripristina orari
+                            </Button>
+                          </div>
+                        )}
                         <div className="-mx-3.5 mt-2.5 mb-0.5 h-px bg-[var(--glass-sep)]" />
                         <button
                           type="button"
                           aria-expanded={moreOpen}
-                          onClick={() => setMoreOpen((o) => !o)}
-                          className="flex min-h-11 w-full items-center justify-start gap-1 whitespace-nowrap px-2.5 text-[13px] font-semibold text-foreground"
+                          onClick={toggleMore}
+                          className={cn(
+                            "flex min-h-11 w-full items-center justify-start gap-1 whitespace-nowrap px-2.5 text-[13px] font-semibold text-foreground",
+                            !moreOpen && "-mb-1",
+                          )}
                         >
-                          Altre opzioni
+                          Gestione nomi
                           <ChevronDown className={cn("size-4 shrink-0 transition-transform duration-200", moreOpen && "rotate-180")} />
                         </button>
                         {moreOpen && (
@@ -1590,7 +1748,7 @@ function Index() {
                               </Button>
                               <button
                                 type="button"
-                                onClick={() => setLinkFormOpen(false)}
+                                onClick={clearLinkForm}
                                 className="rounded-xl border border-border bg-card px-3.5 py-2 text-[13px] text-foreground"
                               >
                                 Annulla
@@ -1600,8 +1758,6 @@ function Index() {
                         )}
                         </div>
                         )}
-                      </div>
-                    )}
                   </PopoverContent>
                 </Popover>
             </div>

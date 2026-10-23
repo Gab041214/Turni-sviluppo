@@ -379,12 +379,19 @@ function EntryRow({
   onSelect,
   onDelete,
   onRename,
+  tag,
+  deleteLabel,
 }: {
   name: string;
   selected?: boolean;
   onSelect?: () => void;
-  onDelete: () => void;
-  onRename: (newName: string) => void;
+  /** Se manca, lo swipe verso sinistra non fa comparire "elimina". */
+  onDelete?: () => void;
+  /** Se manca, lo swipe verso destra non fa comparire "modifica". */
+  onRename?: (newName: string) => void;
+  /** Etichetta a destra del nome (usata dall'elenco dei mesi). */
+  tag?: string;
+  deleteLabel?: string;
 }) {
   const [reveal, setReveal] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -408,8 +415,8 @@ function EntryRow({
     if (Math.abs(delta) > 4) moved.current = true;
     // Se la riga parte aperta da un lato, si ferma sul bordo originale: l'altro pulsante non compare per sbaglio.
     const start = startReveal.current;
-    const lo = start > 0 ? 0 : -SWIPE_REST * 2;
-    const hi = start < 0 ? 0 : SWIPE_REST * 2;
+    const lo = start > 0 || !onRename ? 0 : -SWIPE_REST * 2;
+    const hi = start < 0 || !onDelete ? 0 : SWIPE_REST * 2;
     let v = Math.min(hi, Math.max(lo, start + delta));
     if (Math.abs(v) > SWIPE_REST) {
       v = Math.sign(v) * (SWIPE_REST + Math.min(SWIPE_RUBBER, (Math.abs(v) - SWIPE_REST) * 0.25));
@@ -448,7 +455,7 @@ function EntryRow({
 
   const confirmRename = () => {
     const v = draft.trim();
-    if (v && v !== name) onRename(v);
+    if (v && v !== name) onRename?.(v);
     setEditing(false);
   };
 
@@ -456,6 +463,7 @@ function EntryRow({
     <li className="relative h-11 shrink-0 overflow-hidden rounded-[14px]">
       {/* Scorrendo la riga verso destra compare "modifica" a sinistra; verso sinistra "elimina" a destra.
           Le righe sono trasparenti: le pillole si mostrano solo quando la riga è scorsa. */}
+      {onRename && (
       <button
         type="button"
         aria-label={`Modifica ${name}`}
@@ -471,9 +479,11 @@ function EntryRow({
       >
         <Keyboard className="size-5" />
       </button>
+      )}
+      {onDelete && (
       <button
         type="button"
-        aria-label={`Elimina ${name}`}
+        aria-label={deleteLabel ?? `Elimina ${name}`}
         aria-hidden={deleteAmount === 0}
         tabIndex={deleteAmount === 0 ? -1 : 0}
         className="absolute top-1/2 -mt-5 flex h-10 items-center justify-center rounded-full bg-[#FF3B30] text-white"
@@ -482,6 +492,7 @@ function EntryRow({
       >
         <Trash2 className="size-5" />
       </button>
+      )}
       <div
         className={cn(
           "relative flex h-11 w-full touch-pan-y cursor-pointer items-center overflow-hidden rounded-[14px] px-3",
@@ -511,7 +522,15 @@ function EntryRow({
           />
         ) : (
           <>
-            <span className="flex-1 truncate text-base text-foreground">{name}</span>
+            <span
+              className={cn(
+                "flex-1 truncate text-foreground",
+                tag === undefined ? "text-base" : cn("text-[15px]", selected ? "font-semibold" : "font-medium"),
+              )}
+            >
+              {name}
+            </span>
+            {tag && <span className="mr-2 shrink-0 text-xs font-normal text-muted-foreground">{tag}</span>}
             {selected && <Check className="size-4 shrink-0 text-foreground" />}
           </>
         )}
@@ -1246,29 +1265,32 @@ function Index() {
                   </button>
                 </PopoverTrigger>
                 <PopoverContent align="start" className="w-[300px] p-2.5">
-                  {monthChoices.map((m) => {
-                    const on = m.key === monthK;
-                    return (
-                      <button
-                        key={m.key}
-                        type="button"
-                        onClick={() => {
+                  <ul className="space-y-1">
+                    {monthChoices.map((m) => (
+                      <EntryRow
+                        key={`${m.key}-${files[m.key] ? "file" : "vuoto"}`}
+                        name={m.label}
+                        tag={m.tag}
+                        selected={m.key === monthK}
+                        onSelect={() => {
                           setMonth(m.date);
                           setMonthMenuOpen(false);
                           setPeekKey(null);
                         }}
-                        className={cn(
-                          "flex min-h-11 w-full items-center gap-2 rounded-[14px] px-3 text-left text-[15px] text-foreground",
-                          on ? "font-semibold" : "font-medium",
-                        )}
-                        style={on ? { backgroundColor: "var(--glass-chip)" } : undefined}
-                      >
-                        <span className="flex-1">{m.label}</span>
-                        <span className="text-xs font-normal text-muted-foreground">{m.tag}</span>
-                        {on && <Check className="size-4 shrink-0" />}
-                      </button>
-                    );
-                  })}
+                        deleteLabel={`Elimina il file di ${m.label}`}
+                        onDelete={
+                          files[m.key]
+                            ? () =>
+                                setFiles((prev) => {
+                                  const next = { ...prev };
+                                  delete next[m.key];
+                                  return next;
+                                })
+                            : undefined
+                        }
+                      />
+                    ))}
+                  </ul>
                 </PopoverContent>
               </Popover>
             ) : (

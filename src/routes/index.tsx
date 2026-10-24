@@ -219,19 +219,16 @@ async function parseExcel(
 /** Restituisce nero o bianco per il massimo contrasto rispetto al colore esadecimale dato. */
 type ShiftEntry = { name: string; startLabel: string; endLabel: string; startMin: number; endMin: number; modified: boolean };
 
-const BASE_RANGE_START = 10 * 60;
-const BASE_RANGE_END = 20 * 60;
-
 /**
  * Calcola posizione e larghezza (in %) del tratto colorato di un turno, sul range
- * [rangeStart, rangeEnd] passato da chi chiama: di norma 10:00-20:00, ma esteso quando
- * quel giorno ci sono turni fuori da questi orari (es. venerdì/sabato fino alle 20:30).
+ * [rangeStart, rangeEnd] passato da chi chiama: l'apertura e la chiusura del giorno della settimana
+ * (Orari di esercizio), con la fine estesa se quel giorno c'è un turno che finisce dopo.
  */
 function barMetrics(
   startMin: number,
   endMin: number,
-  rangeStart: number = BASE_RANGE_START,
-  rangeEnd: number = BASE_RANGE_END,
+  rangeStart: number,
+  rangeEnd: number,
 ): { left: number; width: number } {
   const span = rangeEnd - rangeStart;
   const clamp = (v: number) => Math.min(Math.max(v, rangeStart), rangeEnd);

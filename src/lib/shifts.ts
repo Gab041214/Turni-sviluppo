@@ -1,3 +1,5 @@
+import { BREAK_AFTER_MIN, BREAK_MIN, LATE_FROM_MIN, SHORT_SHIFT_MIN } from "@/lib/constants";
+
 export type OvertimeSide = "before" | "after";
 
 /**
@@ -43,7 +45,7 @@ export function minutesToTime(minutes: number): string {
 export function netMinutes(startMin: number, endMin: number): number {
   let diff = endMin - startMin;
   if (diff < 0) diff += 24 * 60;
-  if (diff > 8 * 60) diff -= 60;
+  if (diff > BREAK_AFTER_MIN) diff -= BREAK_MIN;
   return Math.max(diff, 0);
 }
 
@@ -55,10 +57,10 @@ export function shiftFromTimes(start: string, end: string): DayData {
   let shortShift = false;
   if (s !== null && e !== null) {
     const net = netMinutes(s, e);
-    shortShift = net < 7 * 60;
+    shortShift = net < SHORT_SHIFT_MIN;
     total = formatHours(net);
   }
-  const late = e !== null && e >= 20 * 60;
+  const late = e !== null && e >= LATE_FROM_MIN;
   // Orari mostrati sempre come HH:MM, qualunque formato abbia la cella del file (es. "10.00").
   const label = (raw: string, min: number | null) =>
     min === null ? raw : `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
@@ -82,7 +84,7 @@ export function shiftWithOvertime(base: DayData, ot: Overtime | undefined): DayD
   const day = 24 * 60;
   const otStart = ot.side === "before" ? (((s - ot.min) % day) + day) % day : e;
   const otEnd = ot.side === "before" ? s : (e + ot.min) % day;
-  const late = ot.side === "after" ? e + ot.min >= 20 * 60 : base.late;
+  const late = ot.side === "after" ? e + ot.min >= LATE_FROM_MIN : base.late;
   return {
     ...base,
     total: formatHours(netMinutes(s, e) + ot.min),

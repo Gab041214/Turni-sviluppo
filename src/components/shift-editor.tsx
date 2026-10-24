@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Minus, Undo2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { OPENING_SHIFT_MAX_START_MIN } from "@/lib/constants";
 import { hasShiftOverride, type DayOverride } from "@/lib/overrides";
 import {
   formatHours,
@@ -33,11 +34,11 @@ function draftFromShift(override: DayOverride | undefined, fileShift: DayData): 
   };
 }
 
-/** Nuovo straordinario: durata a zero; lato "dopo" per i turni di apertura (inizio entro le 10:00), "prima" per gli altri. */
+/** Nuovo straordinario: durata a zero; lato "dopo" per i turni di apertura (inizio entro OPENING_SHIFT_MAX_START_MIN, 10:00), "prima" per gli altri. */
 function otDraftFrom(ot: Overtime | undefined, ordinary: DayData): OtDraft {
   if (ot) return ot.side === "all" ? { side: "all", dur: "00:00" } : { side: ot.side, dur: minutesToTime(ot.min) };
   const start = ordinary ? toMinutes(ordinary.start) : null;
-  return { side: start !== null && start <= 10 * 60 ? "after" : "before", dur: "00:00" };
+  return { side: start !== null && start <= OPENING_SHIFT_MAX_START_MIN ? "after" : "before", dur: "00:00" };
 }
 
 const cardClass =

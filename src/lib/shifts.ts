@@ -1,4 +1,4 @@
-import { BREAK_AFTER_MIN, BREAK_MIN, LATE_FROM_MIN, SHORT_SHIFT_MIN } from "@/lib/constants";
+import { BREAK_AFTER_MIN, BREAK_MIN, SHORT_SHIFT_MIN } from "@/lib/constants";
 
 export type OvertimeSide = "before" | "after";
 
@@ -13,7 +13,11 @@ export type DayData = {
   start: string;
   end: string;
   total: string | null;
-  late: boolean;
+  /**
+   * Minuti dalla mezzanotte a cui finisce davvero il turno (straordinario "dopo" compreso, senza
+   * ritorno a 0 oltre la mezzanotte). Il turno è "tardo" se è >= alla chiusura del giorno (hours.ts).
+   */
+  endMin: number | null;
   shortShift: boolean;
   /** Orari dello straordinario, se presente. */
   ot?: { side: OvertimeSide | "all"; start: string; end: string; otTotal: string };
@@ -49,7 +53,7 @@ export function netMinutes(startMin: number, endMin: number): number {
   return Math.max(diff, 0);
 }
 
-/** Costruisce il turno (con totale, "tardo" e "corto") a partire da inizio e fine. */
+/** Costruisce il turno (con totale, fine in minuti e "corto") a partire da inizio e fine. */
 export function shiftFromTimes(start: string, end: string): DayData {
   const s = toMinutes(start);
   const e = toMinutes(end);
@@ -60,11 +64,10 @@ export function shiftFromTimes(start: string, end: string): DayData {
     shortShift = net < SHORT_SHIFT_MIN;
     total = formatHours(net);
   }
-  const late = e !== null && e >= LATE_FROM_MIN;
   // Orari mostrati sempre come HH:MM, qualunque formato abbia la cella del file (es. "10.00").
   const label = (raw: string, min: number | null) =>
     min === null ? raw : `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
-  return { start: label(start, s), end: label(end, e), total, late, shortShift };
+  return { start: label(start, s), end: label(end, e), total, endMin: e, shortShift };
 }
 
 /**
@@ -84,11 +87,11 @@ export function shiftWithOvertime(base: DayData, ot: Overtime | undefined): DayD
   const day = 24 * 60;
   const otStart = ot.side === "before" ? (((s - ot.min) % day) + day) % day : e;
   const otEnd = ot.side === "before" ? s : (e + ot.min) % day;
-  const late = ot.side === "after" ? e + ot.min >= LATE_FROM_MIN : base.late;
+  const endMin = ot.side === "after" ? e + ot.min : base.endMin;
   return {
     ...base,
     total: formatHours(netMinutes(s, e) + ot.min),
-    late,
+    endMin,
     shortShift: false,
     ot: {
       side: ot.side,

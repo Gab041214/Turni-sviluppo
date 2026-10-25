@@ -7,6 +7,7 @@ import { it } from "date-fns/locale";
 import { aliasLookup, loadAliases, saveAliases, similarNames, withAlias, type Alias } from "@/lib/aliases";
 import {
   CLOSE_RANGE,
+  DEFAULT_OPEN,
   HOURS_STEP,
   OPEN_RANGE,
   effectiveHours,
@@ -2245,6 +2246,7 @@ function Index() {
               subtitle={`${selected} · ${dateCapitalized(dayPopup.date, "EEE d MMM")}`}
               fileShift={selectedFileShift}
               ordinary={applyOverride(selectedFileShift, overrideFor(dayPopup.date, selected), false)}
+              openMin={hours[weekdayIndex(dayPopup.date)]?.open ?? DEFAULT_OPEN}
               override={overrideFor(dayPopup.date, selected)}
               accent={accent}
               accentText={contrastTextColor(accent)}

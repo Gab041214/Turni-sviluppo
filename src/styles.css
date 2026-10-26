@@ -269,3 +269,125 @@
     animation: none;
   }
 }
+
+/*
+ * Barra in cima (nome, "Carica file", impostazioni), cornice della settimana e tessere dei giorni.
+ * Valori di base = aspetto per tutti i dispositivi (Android compreso).
+ * Il blocco @supports più sotto vale solo su iOS/iPadOS (Safari e app installata): materiale "vetro" in stile iOS 27.
+ */
+@layer utilities {
+  .bar-ctl {
+    background-color: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  }
+  .bar-up {
+    border: 0;
+    border-radius: 14px;
+  }
+  .week-frame {
+    background-color: var(--app-week);
+    border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+    border-radius: 1rem;
+  }
+  @media (min-width: 640px) {
+    .week-frame {
+      border-radius: 1.5rem;
+    }
+  }
+  .day-tile {
+    background-color: var(--app-tile);
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  }
+  .day-tile:not(.border-2) {
+    border-color: color-mix(in oklab, var(--border) 60%, transparent);
+  }
+}
+
+/* Solo iOS/iPadOS: vetro più trasparente, bordo scurito e riflesso luminoso (stile iOS 27). Su Android non si applica. */
+@supports (-webkit-touch-callout: none) {
+  :root {
+    --glass: rgba(255, 255, 255, 0.46);
+    --glass-bd: rgba(0, 0, 0, 0.13);
+    --glass-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.95), inset 0 -1px 0 rgba(255, 255, 255, 0.3),
+      0 18px 48px rgba(0, 0, 0, 0.22);
+  }
+  .dark {
+    --glass: rgba(44, 52, 74, 0.42);
+    --glass-bd: rgba(0, 0, 0, 0.55);
+    --glass-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 0 0 1px rgba(255, 255, 255, 0.1),
+      0 18px 48px rgba(0, 0, 0, 0.55);
+  }
+  @layer components {
+    .glass {
+      -webkit-backdrop-filter: blur(34px) saturate(1.9);
+      backdrop-filter: blur(34px) saturate(1.9);
+    }
+  }
+  @layer utilities {
+    .bar-ctl {
+      background-color: rgba(255, 255, 255, 0.45);
+      border-color: rgba(0, 0, 0, 0.1);
+      border-radius: 22px;
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.95), inset 0 -1px 0 rgba(255, 255, 255, 0.35),
+        0 4px 14px rgba(0, 0, 0, 0.08);
+    }
+    .bar-up {
+      border: 1px solid rgba(0, 0, 0, 0.3);
+      border-radius: 22px;
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.35), inset 0 -1px 0 rgba(255, 255, 255, 0.08),
+        0 4px 14px rgba(0, 0, 0, 0.14);
+    }
+    .week-frame {
+      background-color: rgba(255, 255, 255, 0.28);
+      border-color: rgba(0, 0, 0, 0.09);
+      border-radius: 22px;
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.85), inset 0 -1px 0 rgba(255, 255, 255, 0.25),
+        0 8px 24px rgba(0, 0, 0, 0.08);
+    }
+    .day-tile {
+      background-color: rgba(255, 255, 255, 0.55);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.95), inset 0 -1px 0 rgba(255, 255, 255, 0.3),
+        0 2px 8px rgba(0, 0, 0, 0.06);
+    }
+    .day-tile:not(.border-2) {
+      border-color: rgba(0, 0, 0, 0.07);
+    }
+    .dark .bar-ctl {
+      background-color: rgba(255, 255, 255, 0.09);
+      border-color: rgba(0, 0, 0, 0.45);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.28), inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+        0 4px 14px rgba(0, 0, 0, 0.4);
+    }
+    .dark .bar-up {
+      border-color: rgba(0, 0, 0, 0.45);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+        0 4px 14px rgba(0, 0, 0, 0.4);
+    }
+    .dark .week-frame {
+      background-color: rgba(255, 255, 255, 0.05);
+      border-color: rgba(0, 0, 0, 0.45);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.18), inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+        0 8px 24px rgba(0, 0, 0, 0.4);
+    }
+    .dark .day-tile {
+      background-color: rgba(255, 255, 255, 0.1);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.24), inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+        0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+    .dark .day-tile:not(.border-2) {
+      border-color: rgba(0, 0, 0, 0.4);
+    }
+  }
+}

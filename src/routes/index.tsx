@@ -1296,7 +1296,7 @@ function Index() {
             )}
           </header>
 
-          <div className="rounded-2xl border border-border/60 bg-card p-3 shadow-sm">
+          <div>
             <div className="flex gap-2">
               <input
                 ref={fileRef}
@@ -1323,14 +1323,14 @@ function Index() {
                   <PopoverTrigger asChild>
                     <button
                       type="button"
-                      className="flex h-9 w-full min-w-0 flex-1 items-center gap-2 rounded-xl border border-border bg-card px-2 text-[19px]"
+                      className="flex h-9 w-full min-w-0 flex-1 items-center gap-2 rounded-xl border border-border bg-card px-2 text-[18px] shadow-sm"
                       aria-label="Filtra per voce"
                     >
-                      <Users className="size-[26px] shrink-0 text-muted-foreground" />
+                      <Users className="size-6 shrink-0 text-muted-foreground" />
                       <span className={cn("flex-1 truncate text-left", !selected && "text-muted-foreground")}>
                         {selected || "Nome"}
                       </span>
-                      <ChevronDown className="size-[22px] shrink-0 text-muted-foreground" />
+                      <ChevronDown className="size-5 shrink-0 text-muted-foreground" />
                     </button>
                   </PopoverTrigger>
                   <PopoverContent align="start" className="w-72 p-3.5">
@@ -1405,15 +1405,15 @@ function Index() {
                   </PopoverContent>
                 </Popover>
               <Button
-                className="h-9 w-11 shrink-0 rounded-xl border-0 px-0 text-white hover:opacity-90 focus-visible:ring-2 focus-visible:ring-foreground [&_svg]:size-[26px]"
+                className="h-9 w-11 shrink-0 rounded-xl border-0 px-0 text-white hover:opacity-90 focus-visible:ring-2 focus-visible:ring-foreground [&_svg]:size-6"
                 style={{ backgroundColor: "var(--app-upload)" }}
                 onClick={() => fileRef.current?.click()}
                 aria-label="Carica file Excel"
                 title="Carica file Excel"
               >
                 <svg
-                  width="26"
-                  height="26"
+                  width="24"
+                  height="24"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="#fff"
@@ -1450,7 +1450,7 @@ function Index() {
                       title="Impostazioni"
                       className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-border bg-card text-foreground shadow-sm"
                     >
-                      <Settings className="size-[26px]" />
+                      <Settings className="size-6" />
                     </button>
                   </PopoverTrigger>
                   <PopoverContent align="end" className="w-[300px] max-w-[calc(100vw-1.5rem)] p-3.5">

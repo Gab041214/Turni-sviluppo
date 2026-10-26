@@ -1323,7 +1323,7 @@ function Index() {
                   <PopoverTrigger asChild>
                     <button
                       type="button"
-                      className="flex h-11 w-full min-w-0 flex-1 items-center gap-2 rounded-[14px] border border-border bg-card px-2 text-[19px] shadow-sm"
+                      className="bar-ctl flex h-11 w-full min-w-0 flex-1 items-center gap-2 px-3 text-[19px]"
                       aria-label="Filtra per voce"
                     >
                       <Users className="size-[26px] shrink-0 text-muted-foreground" />
@@ -1405,7 +1405,7 @@ function Index() {
                   </PopoverContent>
                 </Popover>
               <Button
-                className="size-11 shrink-0 rounded-[14px] border-0 px-0 text-white hover:opacity-90 focus-visible:ring-2 focus-visible:ring-foreground [&_svg]:size-7"
+                className="bar-up h-11 w-[50px] shrink-0 px-0 text-white hover:opacity-90 focus-visible:ring-2 focus-visible:ring-foreground [&_svg]:size-7"
                 style={{ backgroundColor: "var(--app-upload)" }}
                 onClick={() => fileRef.current?.click()}
                 aria-label="Carica file Excel"
@@ -1448,7 +1448,7 @@ function Index() {
                       type="button"
                       aria-label="Impostazioni"
                       title="Impostazioni"
-                      className="flex size-11 shrink-0 items-center justify-center rounded-[14px] border border-border bg-card text-foreground shadow-sm"
+                      className="bar-ctl flex h-11 w-[50px] shrink-0 items-center justify-center text-foreground"
                     >
                       <Settings className="size-7" />
                     </button>
@@ -1908,8 +1908,7 @@ function Index() {
           {weeks.map((week, weekIdx) => (
             <div
               key={weekIdx}
-              className="relative rounded-2xl border border-border/60 p-1.5 pb-2 sm:rounded-3xl sm:p-2"
-              style={{ backgroundColor: "var(--app-week)" }}
+              className="week-frame relative p-1.5 pb-2 sm:p-2"
             >
               <div className="grid grid-cols-7 gap-1 sm:gap-2">
                 {DAY_LABELS.map((label, i) => {
@@ -1994,9 +1993,9 @@ function Index() {
                         <>
                           <article
                             className={cn(
-                              "absolute inset-x-0 bottom-0 flex flex-col items-center justify-end rounded-xl bg-[var(--app-tile)] p-1 shadow-sm sm:rounded-2xl sm:p-2",
+                              "day-tile absolute inset-x-0 bottom-0 flex flex-col items-center justify-end rounded-xl p-1 sm:rounded-2xl sm:p-2",
                               otBlock && "sm:pb-1.5",
-                              today ? "border-2 border-foreground" : "border border-border/60",
+                              today ? "border-2 border-foreground" : "border",
                             )}
                             style={{ height: data.shortShift ? "70%" : "100%" }}
                           >

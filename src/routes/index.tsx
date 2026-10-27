@@ -1456,7 +1456,7 @@ function Index() {
                   <PopoverContent
                     align="end"
                     collisionPadding={12}
-                    className="max-h-[var(--radix-popover-content-available-height)] w-[300px] max-w-[calc(100vw-1.5rem)] overflow-y-auto overscroll-contain p-3.5"
+                    className="flex max-h-[var(--radix-popover-content-available-height)] w-[300px] max-w-[calc(100vw-1.5rem)] flex-col overflow-y-auto overscroll-contain p-3.5"
                   >
                     <p className="mb-1.5 text-xs font-medium text-muted-foreground">Tema</p>
                     <div className="mb-3 grid grid-cols-3 gap-1 rounded-xl bg-secondary p-1">
@@ -1505,7 +1505,7 @@ function Index() {
                       <ChevronDown className={cn("size-4 shrink-0 transition-transform duration-200", advancedOpen && "rotate-180")} />
                     </button>
                     {advancedOpen && (
-                      <div className="animate-in fade-in-0 slide-in-from-top-1 pt-1 duration-200 motion-reduce:animate-none">
+                      <div className="animate-in fade-in-0 slide-in-from-top-1 -mx-3.5 min-h-0 overflow-y-auto overscroll-contain px-3.5 pt-1 duration-200 motion-reduce:animate-none">
                     <p className="mb-1.5 text-xs font-medium text-muted-foreground">Mese</p>
                     <div className="flex items-center gap-2">
                       <button
@@ -1614,13 +1614,15 @@ function Index() {
                           <ChevronDown className={cn("size-4 shrink-0 transition-transform duration-200", hoursOpen && "rotate-180")} />
                         </button>
                         {hoursOpen && (
-                          <div className="animate-in fade-in-0 slide-in-from-top-1 pt-1 duration-200 motion-reduce:animate-none">
-                            <div className="mb-1.5 flex gap-1.5 pl-2.5 pr-1.5 text-xs font-medium text-muted-foreground">
+                          <div className="animate-in fade-in-0 slide-in-from-top-1 flex min-h-0 flex-col pt-1 duration-200 motion-reduce:animate-none">
+                            <div className="mb-1.5 flex shrink-0 gap-1.5 pl-2.5 pr-1.5 text-xs font-medium text-muted-foreground">
                               <span className="flex-1" />
                               <span className="w-[88px] text-center">Apertura</span>
                               <span className="w-1.5" />
                               <span className="w-[88px] text-center">Chiusura</span>
                             </div>
+                            {/* Scorre solo l'elenco dei giorni (con "Ripristina orari" in fondo): il resto del menu resta fermo */}
+                            <div className="min-h-0 overflow-y-auto overscroll-contain">
                             {["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"].map((label, i) => (
                               <div
                                 key={label}
@@ -1662,6 +1664,7 @@ function Index() {
                             >
                               Ripristina orari
                             </Button>
+                            </div>
                           </div>
                         )}
                         <div className="-mx-3.5 mt-2.5 mb-0.5 h-px bg-[var(--glass-sep)]" />
@@ -1678,7 +1681,7 @@ function Index() {
                           <ChevronDown className={cn("size-4 shrink-0 transition-transform duration-200", moreOpen && "rotate-180")} />
                         </button>
                         {moreOpen && (
-                        <div className="animate-in fade-in-0 slide-in-from-top-1 pt-1 duration-200 motion-reduce:animate-none">
+                        <div className="animate-in fade-in-0 slide-in-from-top-1 -mx-3.5 min-h-0 overflow-y-auto overscroll-contain px-3.5 pt-1 duration-200 motion-reduce:animate-none">
                         <p className="mb-1.5 text-xs font-medium text-muted-foreground">Nomi associati</p>
                         {aliases.length === 0 && (
                           <p className="mb-1.5 text-xs text-muted-foreground">Nessun nome associato.</p>

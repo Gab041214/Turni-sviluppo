@@ -1453,7 +1453,11 @@ function Index() {
                       <Settings className="size-7" />
                     </button>
                   </PopoverTrigger>
-                  <PopoverContent align="end" className="w-[300px] max-w-[calc(100vw-1.5rem)] p-3.5">
+                  <PopoverContent
+                    align="end"
+                    collisionPadding={12}
+                    className="max-h-[var(--radix-popover-content-available-height)] w-[300px] max-w-[calc(100vw-1.5rem)] overflow-y-auto overscroll-contain p-3.5"
+                  >
                     <p className="mb-1.5 text-xs font-medium text-muted-foreground">Tema</p>
                     <div className="mb-3 grid grid-cols-3 gap-1 rounded-xl bg-secondary p-1">
                       {THEME_OPTIONS.map(({ value, label, Icon }) => (

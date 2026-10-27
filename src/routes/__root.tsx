@@ -44,7 +44,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          Questa pagina non si è caricata
+          Impossibile caricare la pagina
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
           Qualcosa è andato storto. Prova ad aggiornare la pagina o torna alla home.

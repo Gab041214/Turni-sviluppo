@@ -402,7 +402,9 @@
 
 /* Oggi: tre stili di cornice, scelti da Impostazioni > Oggi. Il colore segue l'accento della palette
    (--today-accent / --today-rgb sono impostati sulla cella). Fuori da @layer: prevalgono sulle utility. */
-.day-today-cell {
+/* Solo la tessera di oggi sta sopra le vicine (non la cella intera: una cella con z-index
+   confinerebbe il riquadro "Turno originale" e ne spegnerebbe la sfocatura) */
+.day-tile.day-today {
   z-index: 1;
 }
 .day-today-cornice {

@@ -390,38 +390,39 @@
       border-color: rgba(0, 0, 0, 0.4);
     }
 
-    /* Oggi (B3): filo chiaro e alone corto nel colore d'accento scelto, che non arriva alle tessere vicine */
-    .day-today-cell {
-      z-index: 1;
+    /* Oggi: riflesso chiaro interno del vetro (le regole di colore e alone stanno in fondo al file, per tutti i dispositivi) */
+    .day-tile {
+      --today-inset: inset 0 1px 0 rgba(255, 255, 255, 0.95), inset 0 -1px 0 rgba(255, 255, 255, 0.3);
     }
-    .day-tile.day-today {
-      border-width: 1px;
-      border-color: rgba(255, 255, 255, 0.5);
-      box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.95), inset 0 -1px 0 rgba(255, 255, 255, 0.3),
-        0 0 5px 1.5px rgba(31, 122, 125, 0.6);
-      box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.95), inset 0 -1px 0 rgba(255, 255, 255, 0.3),
-        0 0 5px 1.5px color-mix(in srgb, var(--today-accent) 60%, transparent);
-    }
-    .dark .day-tile.day-today {
-      border-color: rgba(255, 255, 255, 0.5);
-      box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.24), inset 0 0 0 1px rgba(255, 255, 255, 0.06),
-        0 0 5px 1.5px rgba(31, 122, 125, 0.6);
-      box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.24), inset 0 0 0 1px rgba(255, 255, 255, 0.06),
-        0 0 5px 1.5px color-mix(in srgb, var(--today-accent) 60%, transparent);
-    }
-    /* Oggi senza turno: lo stesso effetto intorno al numero del giorno */
-    .day-today-date {
-      border-width: 1px;
-      border-color: rgba(255, 255, 255, 0.5);
-      box-shadow: 0 0 4px 1.5px rgba(31, 122, 125, 0.6);
-      box-shadow: 0 0 4px 1.5px color-mix(in srgb, var(--today-accent) 60%, transparent);
-    }
-    .dark .day-today-date {
-      border-color: rgba(255, 255, 255, 0.5);
+    .dark .day-tile {
+      --today-inset: inset 0 1px 0 rgba(255, 255, 255, 0.24), inset 0 0 0 1px rgba(255, 255, 255, 0.06);
     }
   }
+}
+
+/* Oggi: tre stili di cornice, scelti da Impostazioni > Oggi. Il colore segue l'accento della palette
+   (--today-accent / --today-rgb sono impostati sulla cella). Fuori da @layer: prevalgono sulle utility. */
+.day-today-cell {
+  z-index: 1;
+}
+.day-today-cornice {
+  border-width: 2px;
+  border-color: var(--today-accent);
+}
+.day-today-anello,
+.day-today-aura {
+  border-width: 1px;
+  border-color: rgba(255, 255, 255, 0.55);
+}
+.day-today-anello {
+  box-shadow:
+    var(--today-inset, inset 0 0 0 0 transparent),
+    0 0 0 1px rgba(var(--today-rgb), 0.55), 0 0 0 2px rgba(var(--today-rgb), 0.25), 0 0 5px 1.5px rgba(var(--today-rgb), 0.6);
+}
+.day-today-aura {
+  box-shadow: var(--today-inset, inset 0 0 0 0 transparent), 0 0 5px 1.5px rgba(var(--today-rgb), 0.6);
+}
+/* Campioni nel menu: stessi stili su una tessera piccola */
+.day-today-sample.day-today-cornice {
+  border-width: 2px;
 }

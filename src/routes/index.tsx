@@ -1936,7 +1936,10 @@ function Index() {
                       className={cn(
                         "@container relative h-24 cursor-pointer transition-opacity duration-200 sm:h-[148px]",
                         outside && !peekOpen && "opacity-50",
+                        today && "day-today-cell",
                       )}
+                      // Colore d'accento scelto nella palette: l'alone di "oggi" (solo iOS) lo segue
+                      style={today ? ({ "--today-accent": accent } as CSSProperties) : undefined}
                       onClick={() => {
                         if (ignoreTileClickRef.current) {
                           ignoreTileClickRef.current = false;
@@ -1950,7 +1953,7 @@ function Index() {
                         <div
                           className={cn(
                             "block truncate rounded-full px-2 text-[12px] sm:text-[16px]",
-                            today && !data && "border-2 border-foreground",
+                            today && !data && "day-today-date border-2 border-foreground",
                           )}
                           style={{ color: "var(--app-date)" }}
                         >
@@ -2002,7 +2005,7 @@ function Index() {
                             className={cn(
                               "day-tile absolute inset-x-0 bottom-0 flex flex-col items-center justify-end rounded-xl p-1 sm:rounded-2xl sm:p-2",
                               otBlock && "sm:pb-1.5",
-                              today ? "border-2 border-foreground" : "border",
+                              today ? "day-today border-2 border-foreground" : "border",
                             )}
                             style={{ height: data.shortShift ? "70%" : "100%" }}
                           >

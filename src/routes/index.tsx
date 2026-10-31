@@ -1987,7 +1987,6 @@ function Index() {
                       className={cn(
                         "@container relative h-24 cursor-pointer transition-opacity duration-200 sm:h-[148px]",
                         outside && !peekOpen && "opacity-50",
-                        today && "day-today-cell",
                       )}
                       // Colore d'accento scelto nella palette: la cornice di "oggi" lo segue (vedi Impostazioni > Oggi)
                       style={today ? ({ "--today-accent": accent, "--today-rgb": hexToRgb(accent) } as CSSProperties) : undefined}

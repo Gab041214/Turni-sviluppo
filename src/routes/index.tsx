@@ -94,6 +94,14 @@ const STORAGE_KEY = "turni.voci";
 const SELECTED_KEY = "turni.selected";
 // Indice della coppia di colori scelta (vedi ACCENT_PAIRS); vale per entrambi i temi.
 const ACCENT_KEY = "turni.accentIndex";
+// Stile della cornice che evidenzia "oggi" (menu Impostazioni > Oggi): 0 cornice piena, 1 anello con aura, 2 solo aura.
+const TODAY_STYLE_KEY = "turni.todayStyle";
+const TODAY_STYLES = ["cornice", "anello", "aura"] as const;
+// Da "#rrggbb" a "r, g, b" (per i colori semitrasparenti dell'alone, senza color-mix)
+const hexToRgb = (hex: string) => {
+  const n = parseInt(hex.slice(1), 16);
+  return `${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}`;
+};
 
 const THEME_OPTIONS: { value: ThemePref; label: string; Icon: typeof Sun }[] = [
   { value: "system", label: "Auto", Icon: Monitor },
@@ -662,6 +670,16 @@ function Index() {
       /* ignore */
     }
   };
+  const [todayStyleIdx, setTodayStyleIdx] = useState(0);
+  const setTodayStyle = (i: number) => {
+    setTodayStyleIdx(i);
+    try {
+      localStorage.setItem(TODAY_STYLE_KEY, String(i));
+    } catch {
+      /* ignore */
+    }
+  };
+  const todayStyle = TODAY_STYLES[todayStyleIdx] ?? TODAY_STYLES[0];
   const fileRef = useRef<HTMLInputElement>(null);
   const [themePref, setThemePref, isDark] = useThemePref();
   // Colore d'accento effettivo: la coppia scelta, nella variante del tema attivo.
@@ -717,6 +735,8 @@ function Index() {
       if (raw) setOptions(JSON.parse(raw));
       const acc = Number(localStorage.getItem(ACCENT_KEY));
       if (Number.isInteger(acc) && acc >= 0 && acc < ACCENT_PAIRS.length) setAccentIdx(acc);
+      const ts = Number(localStorage.getItem(TODAY_STYLE_KEY));
+      if (Number.isInteger(ts) && ts >= 0 && ts < TODAY_STYLES.length) setTodayStyleIdx(ts);
       setOverrides(loadOverrides());
       setAliases(loadAliases());
       setHoursOverrides(loadHoursOverrides());
@@ -1477,22 +1497,53 @@ function Index() {
                         </button>
                       ))}
                     </div>
-                    <p className="mb-1.5 text-xs font-medium text-muted-foreground">Colore</p>
-                    <div className="grid grid-cols-5 gap-2">
-                      {ACCENT_PAIRS.map((pair, i) => (
-                        <button
-                          key={pair.light}
-                          type="button"
-                          aria-label={`Colore ${i + 1}`}
-                          aria-pressed={i === accentIdx}
-                          onClick={() => setAccentIndex(i)}
-                          className={cn(
-                            "size-8 rounded-full border transition-transform hover:scale-110",
-                            i === accentIdx ? "border-foreground ring-2 ring-foreground/40" : "border-border",
-                          )}
-                          style={{ backgroundColor: isDark ? pair.dark : pair.light }}
-                        />
-                      ))}
+                    <div className="flex justify-between">
+                      <div>
+                        <p className="mb-1.5 text-xs font-medium text-muted-foreground">Colore</p>
+                        <div className="flex h-10 items-center gap-[3px] rounded-xl bg-secondary p-1">
+                          {ACCENT_PAIRS.map((pair, i) => (
+                            <button
+                              key={pair.light}
+                              type="button"
+                              aria-label={`Colore ${i + 1}`}
+                              aria-pressed={i === accentIdx}
+                              onClick={() => setAccentIndex(i)}
+                              className="flex h-8 w-[26px] items-center justify-center"
+                            >
+                              <span
+                                className={cn(
+                                  "size-[22px] rounded-full border",
+                                  i === accentIdx ? "border-foreground ring-[1.5px] ring-foreground" : "border-black/10",
+                                )}
+                                style={{ backgroundColor: isDark ? pair.dark : pair.light }}
+                              />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <p className="mb-1.5 text-left text-xs font-medium text-muted-foreground">Oggi</p>
+                        <div className="flex h-10 items-center gap-[3px] rounded-xl bg-secondary p-1">
+                          {TODAY_STYLES.map((name, i) => (
+                            <button
+                              key={name}
+                              type="button"
+                              aria-label={`Cornice di oggi: ${name}`}
+                              aria-pressed={i === todayStyleIdx}
+                              onClick={() => setTodayStyle(i)}
+                              className={cn(
+                                "flex h-8 w-[34px] items-center justify-center rounded-[9px]",
+                                i === todayStyleIdx && "bg-card shadow-sm",
+                              )}
+                            >
+                              <span
+                                className={cn("day-today-sample block h-[21px] w-[19px] rounded-md bg-muted", `day-today-${name}`)}
+                                style={{ "--today-accent": accent, "--today-rgb": hexToRgb(accent) } as CSSProperties}
+                              />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                     <div className="-mx-3.5 mt-3 mb-0.5 h-px bg-[var(--glass-sep)]" />
                     <button
@@ -1938,8 +1989,8 @@ function Index() {
                         outside && !peekOpen && "opacity-50",
                         today && "day-today-cell",
                       )}
-                      // Colore d'accento scelto nella palette: l'alone di "oggi" (solo iOS) lo segue
-                      style={today ? ({ "--today-accent": accent } as CSSProperties) : undefined}
+                      // Colore d'accento scelto nella palette: la cornice di "oggi" lo segue (vedi Impostazioni > Oggi)
+                      style={today ? ({ "--today-accent": accent, "--today-rgb": hexToRgb(accent) } as CSSProperties) : undefined}
                       onClick={() => {
                         if (ignoreTileClickRef.current) {
                           ignoreTileClickRef.current = false;
@@ -1953,7 +2004,7 @@ function Index() {
                         <div
                           className={cn(
                             "block truncate rounded-full px-2 text-[12px] sm:text-[16px]",
-                            today && !data && "day-today-date border-2 border-foreground",
+                            today && !data && `day-today-date day-today-${todayStyle} border-2 border-foreground`,
                           )}
                           style={{ color: "var(--app-date)" }}
                         >
@@ -2005,7 +2056,7 @@ function Index() {
                             className={cn(
                               "day-tile absolute inset-x-0 bottom-0 flex flex-col items-center justify-end rounded-xl p-1 sm:rounded-2xl sm:p-2",
                               otBlock && "sm:pb-1.5",
-                              today ? "day-today border-2 border-foreground" : "border",
+                              today ? `day-today day-today-${todayStyle} border-2 border-foreground` : "border",
                             )}
                             style={{ height: data.shortShift ? "70%" : "100%" }}
                           >

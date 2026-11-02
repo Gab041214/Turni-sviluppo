@@ -1190,8 +1190,9 @@ function Index() {
         days.push({ date, data: applyOverride(resolveDay(selected, date)?.data ?? null, overrideFor(date, selected)) });
       }
     }
-    return buildMonthReport(days);
-  }, [month, selected, resolveDay, overrideFor]);
+    // Orari di chiusura per giorno della settimana (Orari di esercizio): servono al lucchetto "Chiusura" del PDF
+    return buildMonthReport(days, hours.map((h) => h.close));
+  }, [month, selected, resolveDay, overrideFor, hours]);
   // Se mancano dei giorni il totale è parziale.
   const partialNote = notice?.partial ?? null;
   const monthLabel = month ? format(month, "MMMM yyyy", { locale: it }).replace(/^./, (c) => c.toUpperCase()) : "";

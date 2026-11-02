@@ -429,7 +429,7 @@
     0 0 0 1px rgba(var(--today-rgb), 0.55), 0 0 0 2px rgba(var(--today-rgb), 0.25), 0 0 5px 1.5px rgba(var(--today-rgb), 0.6);
 }
 .day-today-aura {
-  box-shadow: var(--today-inset, inset 0 0 0 0 transparent), 0 0 5px 1.5px rgba(var(--today-rgb), 0.6);
+  box-shadow: var(--today-inset, inset 0 0 0 0 transparent), 0 0 5px 1.5px rgba(var(--today-rgb), 0.95);
 }
 /* Campioni nel menu: stessi stili su una tessera piccola */
 .day-today-sample.day-today-cornice {

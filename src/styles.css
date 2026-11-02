@@ -393,9 +393,11 @@
     /* Oggi: riflesso chiaro interno del vetro (le regole di colore e alone stanno in fondo al file, per tutti i dispositivi) */
     .day-tile {
       --today-inset: inset 0 1px 0 rgba(255, 255, 255, 0.95), inset 0 -1px 0 rgba(255, 255, 255, 0.3);
+      --today-aura-border: rgba(0, 0, 0, 0.07);
     }
     .dark .day-tile {
       --today-inset: inset 0 1px 0 rgba(255, 255, 255, 0.24), inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+      --today-aura-border: rgba(0, 0, 0, 0.4);
     }
   }
 }
@@ -414,7 +416,12 @@
 .day-today-anello,
 .day-today-aura {
   border-width: 1px;
-  border-color: rgba(255, 255, 255, 0.55);
+}
+/* Anello e aura: il bordo resta quello delle altre tessere (nessuna cornice bianca) */
+.day-today-anello,
+.day-today-aura {
+  border-color: rgba(0, 0, 0, 0.1);
+  border-color: var(--today-aura-border, color-mix(in oklab, var(--border) 60%, transparent));
 }
 .day-today-anello {
   box-shadow:

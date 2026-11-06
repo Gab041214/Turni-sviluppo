@@ -12,6 +12,7 @@ import {
   toMinutes,
   type DayData,
   type Leave,
+  type LeaveKind,
   type Overtime,
   type OvertimeSide,
 } from "@/lib/shifts";
@@ -19,7 +20,7 @@ import {
 type Panel = "closed" | "edit" | "ot" | "leave";
 type ShiftDraft = { rest: boolean; start: string; end: string };
 type OtDraft = { side: OvertimeSide | "all"; dur: string };
-type LeaveDraft = { all: boolean; start: string; end: string };
+type LeaveDraft = { all: boolean; start: string; end: string; kind: LeaveKind };
 
 function draftFromShift(override: DayOverride | undefined, fileShift: DayData): ShiftDraft {
   if (override && hasShiftOverride(override)) {
@@ -47,9 +48,9 @@ function otDraftFrom(ot: Overtime | undefined, ordinary: DayData, openMin: numbe
 }
 
 function leaveDraftFrom(leave: Leave | undefined): LeaveDraft {
-  if (!leave) return { all: false, start: "", end: "" };
-  if ("all" in leave) return { all: true, start: "", end: "" };
-  return { all: false, start: leave.start, end: leave.end };
+  if (!leave) return { all: false, start: "", end: "", kind: "rol" };
+  if ("all" in leave) return { all: true, start: "", end: "", kind: leave.kind ?? "rol" };
+  return { all: false, start: leave.start, end: leave.end, kind: "rol" };
 }
 
 const cardClass =
@@ -111,6 +112,8 @@ export function DayEditPanels({
   const [draft, setDraft] = useState<ShiftDraft>(() => draftFromShift(override, fileShift));
   const [otDraft, setOtDraft] = useState<OtDraft>(() => otDraftFrom(override?.ot, ordinary, openMin));
   const [leaveDraft, setLeaveDraft] = useState<LeaveDraft>(() => leaveDraftFrom(override?.perm));
+  // Con "Intero turno" attivo, toccando Salva si sceglie se è ferie o ROL.
+  const [choosingKind, setChoosingKind] = useState(false);
 
   const shiftModified = hasShiftOverride(override);
   const hasOt = !!override?.ot;
@@ -131,6 +134,7 @@ export function DayEditPanels({
   const openLeave = () => {
     if (!canLeave) return;
     setLeaveDraft(leaveDraftFrom(override?.perm));
+    setChoosingKind(false);
     setPanel("leave");
   };
   const close = () => setPanel("closed");
@@ -398,28 +402,66 @@ export function DayEditPanels({
 
           <div className="min-h-5 text-sm text-muted-foreground">{leaveInfo}</div>
 
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={close}
-              className="min-h-11 flex-1 rounded-xl border border-border text-[15px] text-foreground"
-            >
-              Annulla
-            </button>
-            <button
-              type="button"
-              disabled={!leaveDraft.all && !leaveValid}
-              onClick={() => {
-                if (leaveDraft.all) onSaveLeave({ all: true });
-                else if (draftLeave && leaveValid) onSaveLeave(draftLeave);
-                close();
-              }}
-              className="min-h-11 flex-1 rounded-xl text-[15px] font-semibold disabled:opacity-40"
-              style={{ backgroundColor: accent, color: accentText }}
-            >
-              Salva
-            </button>
-          </div>
+          {choosingKind ? (
+            <div className="flex flex-col gap-2.5" role="group" aria-label="Tipo di assenza">
+              <div className="text-[15px] font-semibold text-foreground">Che tipo di assenza è?</div>
+              <div className="flex gap-2">
+                {(["ferie", "rol"] as const).map((k) => {
+                  const on = leaveDraft.kind === k;
+                  return (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => {
+                        onSaveLeave({ all: true, kind: k });
+                        close();
+                      }}
+                      className={cn(
+                        "min-h-11 flex-1 rounded-xl text-[15px] font-semibold",
+                        on ? undefined : "border border-border text-foreground",
+                      )}
+                      style={on ? { backgroundColor: accent, color: accentText } : undefined}
+                    >
+                      {k === "ferie" ? "Ferie" : "ROL"}
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                type="button"
+                onClick={() => setChoosingKind(false)}
+                className="min-h-11 w-full rounded-xl border border-border text-[15px] text-foreground"
+              >
+                Indietro
+              </button>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={close}
+                className="min-h-11 flex-1 rounded-xl border border-border text-[15px] text-foreground"
+              >
+                Annulla
+              </button>
+              <button
+                type="button"
+                disabled={!leaveDraft.all && !leaveValid}
+                onClick={() => {
+                  if (leaveDraft.all) {
+                    setChoosingKind(true);
+                    return;
+                  }
+                  if (draftLeave && leaveValid) onSaveLeave(draftLeave);
+                  close();
+                }}
+                className="min-h-11 flex-1 rounded-xl text-[15px] font-semibold disabled:opacity-40"
+                style={{ backgroundColor: accent, color: accentText }}
+              >
+                Salva
+              </button>
+            </div>
+          )}
 
           {hasLeave && (
             <button

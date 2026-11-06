@@ -2145,16 +2145,22 @@ function Index() {
                           >
                             {/* ROL a inizio turno: sta sopra l'orario lavorato, con la linea sotto, in tinta tenue */}
                             {leaveBlock && data.leave?.side === "start" && (
-                              <div className={cn("mb-px flex w-[70%] flex-col items-center border-b border-foreground pb-px text-[9px] font-medium leading-[1.1] text-foreground sm:mb-0.5 sm:pb-0.5 sm:text-[13px]", fadedClass)}>
-                                <span>{data.leave.start}</span>
-                                <span>{data.leave.end}</span>
+                              <div className={cn("mb-px flex items-center justify-center gap-[2px] border-b border-foreground pb-px text-[9px] font-medium leading-[1.1] text-foreground sm:mb-0.5 sm:gap-1 sm:pb-0.5 sm:text-[13px]", fadedClass)}>
+                                <span className="flex flex-col items-center">
+                                  <span>{data.leave.start}</span>
+                                  <span>{data.leave.end}</span>
+                                </span>
+                                <span className="font-bold">R</span>
                               </div>
                             )}
                             {/* Straordinario aggiunto prima: sta sopra l'ordinario, con la linea sotto */}
                             {otBlock && data.ot?.side === "before" && (
-                              <div className="mb-px flex w-[70%] flex-col items-center border-b pb-px text-[9px] font-medium leading-[1.1] sm:mb-0.5 sm:pb-0.5 sm:text-[13px]" style={{ color: accent, borderColor: accent }}>
-                                <span>{data.ot.start}</span>
-                                <span>{data.ot.end}</span>
+                              <div className="mb-px flex items-center justify-center gap-[2px] border-b pb-px text-[9px] font-medium leading-[1.1] sm:mb-0.5 sm:gap-1 sm:pb-0.5 sm:text-[13px]" style={{ color: accent, borderColor: accent }}>
+                                <span className="flex flex-col items-center">
+                                  <span>{data.ot.start}</span>
+                                  <span>{data.ot.end}</span>
+                                </span>
+                                <span className="font-bold">S</span>
                               </div>
                             )}
                             {leaveAll && data.leave ? (
@@ -2188,16 +2194,22 @@ function Index() {
                             )}
                             {/* Straordinario aggiunto dopo: corpo più piccolo, sotto una linea sottile */}
                             {otBlock && data.ot?.side === "after" && (
-                              <div className="mt-px flex w-[70%] flex-col items-center border-t pt-px text-[9px] font-medium leading-[1.1] sm:mt-0.5 sm:pt-0.5 sm:text-[13px]" style={{ color: accent, borderColor: accent }}>
-                                <span>{data.ot.start}</span>
-                                <span>{data.ot.end}</span>
+                              <div className="mt-px flex items-center justify-center gap-[2px] border-t pt-px text-[9px] font-medium leading-[1.1] sm:mt-0.5 sm:gap-1 sm:pt-0.5 sm:text-[13px]" style={{ color: accent, borderColor: accent }}>
+                                <span className="flex flex-col items-center">
+                                  <span>{data.ot.start}</span>
+                                  <span>{data.ot.end}</span>
+                                </span>
+                                <span className="font-bold">S</span>
                               </div>
                             )}
                             {/* ROL a fine turno: corpo più piccolo, sotto una linea sottile, in tinta tenue */}
                             {leaveBlock && data.leave?.side === "end" && (
-                              <div className={cn("mt-px flex w-[70%] flex-col items-center border-t border-foreground pt-px text-[9px] font-medium leading-[1.1] text-foreground sm:mt-0.5 sm:pt-0.5 sm:text-[13px]", fadedClass)}>
-                                <span>{data.leave.start}</span>
-                                <span>{data.leave.end}</span>
+                              <div className={cn("mt-px flex items-center justify-center gap-[2px] border-t border-foreground pt-px text-[9px] font-medium leading-[1.1] text-foreground sm:mt-0.5 sm:gap-1 sm:pt-0.5 sm:text-[13px]", fadedClass)}>
+                                <span className="flex flex-col items-center">
+                                  <span>{data.leave.start}</span>
+                                  <span>{data.leave.end}</span>
+                                </span>
+                                <span className="font-bold">R</span>
                               </div>
                             )}
                           </div>

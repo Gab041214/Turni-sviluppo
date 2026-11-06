@@ -1,13 +1,14 @@
 import { format } from "date-fns";
 
-import type { Overtime } from "@/lib/shifts";
+import type { Leave, Overtime } from "@/lib/shifts";
 
 /**
  * Modifiche manuali di un giorno per un nominativo:
  * - turno: `rest` è definito (true = giorno a riposo, false = orario `start`–`end` inserito a mano);
- * - straordinario: `ot`, agganciato all'orario ordinario (quello del file o quello modificato).
+ * - straordinario: `ot`, agganciato all'orario ordinario (quello del file o quello modificato);
+ * - ferie/ROL: `perm`, a inizio o fine turno oppure tutto il turno (mai insieme allo straordinario).
  */
-export type DayOverride = { rest?: boolean; start?: string; end?: string; ot?: Overtime };
+export type DayOverride = { rest?: boolean; start?: string; end?: string; ot?: Overtime; perm?: Leave };
 
 /** mese (yyyy-MM) -> giorno (yyyy-MM-dd) -> nominativo -> modifiche */
 export type OverrideStore = Record<string, Record<string, Record<string, DayOverride>>>;
@@ -60,7 +61,7 @@ export function updateOverride(
   const days = { ...(next[month] ?? {}) };
   const names = { ...(days[day] ?? {}) };
   const updated = change({ ...(names[name] ?? {}) });
-  if (updated.rest !== undefined || updated.ot) names[name] = updated;
+  if (updated.rest !== undefined || updated.ot || updated.perm) names[name] = updated;
   else delete names[name];
   if (Object.keys(names).length > 0) days[day] = names;
   else delete days[day];

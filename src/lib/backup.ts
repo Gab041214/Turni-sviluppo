@@ -1,7 +1,7 @@
 import type { DayOverride, OverrideStore } from "@/lib/overrides";
-import type { Overtime } from "@/lib/shifts";
+import type { Leave, Overtime } from "@/lib/shifts";
 
-/** Esportazione e importazione delle modifiche manuali (turni cambiati e straordinari) tra dispositivi. */
+/** Esportazione e importazione delle modifiche manuali (turni cambiati, straordinari, ferie e ROL) tra dispositivi. */
 
 const BACKUP_APP = "orari-modifiche";
 const BACKUP_VERSION = 1;
@@ -32,6 +32,17 @@ function cleanOvertime(raw: unknown): Overtime | undefined {
   return undefined;
 }
 
+const TIME_RE = /^\d{2}:\d{2}$/;
+
+function cleanLeave(raw: unknown): Leave | undefined {
+  if (!isRecord(raw)) return undefined;
+  if (raw.all === true) return { all: true };
+  if (typeof raw.start === "string" && typeof raw.end === "string" && TIME_RE.test(raw.start) && TIME_RE.test(raw.end)) {
+    return { start: raw.start, end: raw.end };
+  }
+  return undefined;
+}
+
 function cleanOverride(raw: unknown): DayOverride | undefined {
   if (!isRecord(raw)) return undefined;
   const out: DayOverride = {};
@@ -45,7 +56,10 @@ function cleanOverride(raw: unknown): DayOverride | undefined {
   }
   const ot = cleanOvertime(raw.ot);
   if (ot) out.ot = ot;
-  return out.rest !== undefined || out.ot ? out : undefined;
+  // Straordinario e ROL non stanno insieme nello stesso giorno: se ci sono entrambi vale lo straordinario.
+  const perm = ot ? undefined : cleanLeave(raw.perm);
+  if (perm) out.perm = perm;
+  return out.rest !== undefined || out.ot || out.perm ? out : undefined;
 }
 
 /** Legge un file esportato: restituisce le modifiche valide, oppure null se non è un file di Orari. */

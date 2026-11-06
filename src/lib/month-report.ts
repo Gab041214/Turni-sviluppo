@@ -15,6 +15,8 @@ export type ReportRow = {
   /** Ore di straordinario del giorno, vuoto se non ce ne sono. */
   ot: string;
   isOt: boolean;
+  /** Ore di ferie/ROL del giorno, vuoto se non ce ne sono. */
+  perm: string;
   rest: boolean;
   /** Chiusura: il turno finisce all'orario di chiusura del giorno (Orari di esercizio) o più tardi. */
   closing: boolean;
@@ -28,8 +30,11 @@ export type MonthReport = {
   rows: ReportRow[];
   /** Solo i giorni con straordinario. */
   otRows: { label: string; hours: string }[];
+  /** Ore totali del mese: lavorate più ferie/ROL. */
   totalHours: string;
   otHours: string;
+  /** Ore di ferie/ROL del mese. */
+  permHours: string;
 };
 
 const cap = (s: string) => s.replace(/^./, (c) => c.toUpperCase());
@@ -54,18 +59,22 @@ function overtimeMinutes(data: DayData): number {
 export function buildMonthReport(days: MonthRow[], closeMinutes: number[] = []): MonthReport {
   let total = 0;
   let otTotal = 0;
+  let permTotal = 0;
   const rows: ReportRow[] = [];
   const otRows: { label: string; hours: string }[] = [];
   for (const { date, data } of days) {
     const label = cap(format(date, "EEE d", { locale: it }));
     if (!data) {
-      rows.push({ label, times: "—", hours: "", ot: "", isOt: false, rest: true, closing: false, long: false, weekEnd: date.getDay() === 0 });
+      rows.push({ label, times: "—", hours: "", ot: "", isOt: false, perm: "", rest: true, closing: false, long: false, weekEnd: date.getDay() === 0 });
       continue;
     }
     const { start, end } = overallTimes(data);
     const ot = overtimeMinutes(data);
-    total += parseHours(data.total);
+    const perm = data.leave?.min ?? 0;
+    // Le ore di ROL contano nel totale come se fossero lavorate; il giorno mostra solo le ore lavorate.
+    total += parseHours(data.total) + perm;
     otTotal += ot;
+    permTotal += perm;
     if (ot > 0) otRows.push({ label, hours: formatHours(ot) });
     rows.push({
       label,
@@ -73,13 +82,16 @@ export function buildMonthReport(days: MonthRow[], closeMinutes: number[] = []):
       hours: data.total ?? "",
       ot: ot > 0 ? formatHours(ot) : "",
       isOt: ot > 0,
+      perm: perm > 0 ? formatHours(perm) : "",
       rest: false,
-      closing: toMinutes(end) !== null && closeMinutes[weekdayIndex(date)] !== undefined && toMinutes(end)! >= closeMinutes[weekdayIndex(date)]!,
+      // Chi è in ferie tutto il giorno non chiude; con un ROL a fine turno conta l'ultima uscita lavorata.
+      closing: data.leave?.side !== "all" && toMinutes(end) !== null && closeMinutes[weekdayIndex(date)] !== undefined && toMinutes(end)! >= closeMinutes[weekdayIndex(date)]!,
+      // Conta solo le ore lavorate: un turno da 8 ore con 2 di ROL diventa corto
       long: parseHours(data.total ?? null) >= 8 * 60,
       weekEnd: date.getDay() === 0,
     });
   }
-  return { rows, otRows, totalHours: formatHours(total), otHours: formatHours(otTotal) };
+  return { rows, otRows, totalHours: formatHours(total), otHours: formatHours(otTotal), permHours: formatHours(permTotal) };
 }
 
 /* ------------------------------------------------------------------ */
@@ -148,10 +160,11 @@ export function buildMonthPdf(args: {
 
   const X_DAY = 46;
   const X_TIMES = 108;
-  const X_HOURS = 340;
+  const X_HOURS = 276;
   const X_OT = PAGE_W - 46;
-  const X_CLOSE = 380;
-  const X_LONG = 412;
+  const X_CLOSE = 306;
+  const X_LONG = 336;
+  const X_PERM = 492;
 
   text("CALENDARIO TURNI", 40, 50, 8, false, 0.4);
   text(`Orari · ${monthLabel}`, 40, 72, 19, true);
@@ -164,6 +177,7 @@ export function buildMonthPdf(args: {
   textRight("ORE", X_HOURS, 114, 7.5, false, 0.4);
   textCenter("CHIUSURA", X_CLOSE, 114, 7.5, false, 0.4);
   text("TURNO CORTO/LUNGO", X_LONG, 114, 7.5, false, 0.4);
+  textRight("FERIE/ROL", X_PERM, 114, 7.5, false, 0.4);
   textRight("STRAORD.", X_OT, 114, 7.5, false, 0.4);
 
   const ROW_H = 17;
@@ -181,6 +195,7 @@ export function buildMonthPdf(args: {
     if (!r.rest) {
       ops.push(`${r.long ? 0.3 : 0.65} g ${X_LONG} ${y(top + ROW_H / 2 + 4).toFixed(2)} ${r.long ? 30 : 15} 8 re f`);
     }
+    if (r.perm) textRight(r.perm, X_PERM, base, 10, true);
     if (r.ot) textRight(r.ot, X_OT, base, 10, true);
     // Dopo la domenica la riga è più scura e più spessa: separa le settimane (non dopo l'ultimo giorno del mese)
     if (r.weekEnd && r !== report.rows[report.rows.length - 1]) rule(top + ROW_H, 1, 0.45);
@@ -194,7 +209,9 @@ export function buildMonthPdf(args: {
   textRight(report.totalHours, X_OT, top + 20, 14, true);
   text("Straordinari", X_DAY, top + 40, 11);
   textRight(report.otHours, X_OT, top + 40, 11, true);
-  if (note) text(note, X_DAY, top + 58, 9, false, 0.4);
+  text("Ferie/ROL", X_DAY, top + 58, 11);
+  textRight(report.permHours, X_OT, top + 58, 11, true);
+  if (note) text(note, X_DAY, top + 76, 9, false, 0.4);
   text(`Generato il ${generatedOn}`, 40, PAGE_H - 28, 8, false, 0.5);
 
   const content = ops.join("\n");

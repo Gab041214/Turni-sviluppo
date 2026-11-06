@@ -8,6 +8,12 @@ export type OvertimeSide = "before" | "after";
  */
 export type Overtime = { side: OvertimeSide; min: number } | { side: "all" };
 
+/**
+ * Ferie/ROL: tutto il turno, oppure una fascia che coincide con l'inizio o con la fine del turno
+ * (`start` e `end` in "HH:MM"). Le ore di ROL si tolgono dal giorno ma contano nei totali.
+ */
+export type Leave = { all: true } | { start: string; end: string };
+
 export type DayData = {
   /** Orario ordinario. */
   start: string;
@@ -21,6 +27,12 @@ export type DayData = {
   shortShift: boolean;
   /** Orari dello straordinario, se presente. */
   ot?: { side: OvertimeSide | "all"; start: string; end: string; otTotal: string };
+  /**
+   * Ferie/ROL, se presente. Con un ROL parziale `start`/`end` e `total` descrivono la parte
+   * lavorata; `leave.start`/`leave.end` la fascia di ROL e `leave.min` i minuti di ROL
+   * (con "all" l'intero turno, `total` è 0h).
+   */
+  leave?: { side: "all" | "start" | "end"; start: string; end: string; min: number };
 } | null;
 
 export function toMinutes(value: string): number | null {
@@ -100,6 +112,42 @@ export function shiftWithOvertime(base: DayData, ot: Overtime | undefined): DayD
       otTotal: formatHours(ot.min),
     },
   };
+}
+
+/**
+ * Applica ferie/ROL a un turno. Il ROL deve coincidere con l'inizio o con la fine del turno
+ * (se non è così, o se non c'è un turno, il turno resta com'è). Il giorno conta le ore lavorate
+ * (turno meno ROL); le ore di ROL stanno in `leave.min` e vanno sommate ai totali.
+ */
+export function shiftWithLeave(base: DayData, leave: Leave | undefined): DayData {
+  if (!base || !leave) return base;
+  const s = toMinutes(base.start);
+  const e = toMinutes(base.end);
+  if (s === null || e === null) return base;
+  const net = netMinutes(s, e);
+  const wholeShift = (): DayData => ({
+    ...base,
+    total: formatHours(0),
+    endMin: null,
+    leave: { side: "all", start: base.start, end: base.end, min: net },
+  });
+  if ("all" in leave) return wholeShift();
+  const ls = toMinutes(leave.start);
+  const le = toMinutes(leave.end);
+  if (ls === null || le === null) return base;
+  const span = (a: number, b: number) => (((b - a) % 1440) + 1440) % 1440;
+  const gross = span(s, e);
+  const min = span(ls, le);
+  if (min <= 0) return base;
+  if (ls === s && le === e) return wholeShift();
+  const worked = formatHours(Math.max(net - min, 0));
+  if (ls === s && min < gross) {
+    return { ...base, start: minutesToTime(le), total: worked, leave: { side: "start", start: minutesToTime(ls), end: minutesToTime(le), min } };
+  }
+  if (le === e && min < gross) {
+    return { ...base, end: minutesToTime(ls), endMin: ls, total: worked, leave: { side: "end", start: minutesToTime(ls), end: minutesToTime(le), min } };
+  }
+  return base;
 }
 
 /** Primo ingresso e ultima uscita del giorno, straordinario compreso. */

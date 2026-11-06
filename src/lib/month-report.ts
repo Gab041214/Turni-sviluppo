@@ -80,8 +80,9 @@ export function buildMonthReport(days: MonthRow[], closeMinutes: number[] = []):
     if (ot > 0) otRows.push({ label, hours: formatHours(ot) });
     rows.push({
       label,
-      times: `${start} – ${end}`,
-      hours: data.total ?? "",
+      // Ferie/ROL in un giorno vuoto: nessun orario né ore lavorate
+      times: start ? `${start} – ${end}` : "—",
+      hours: start ? (data.total ?? "") : "",
       ot: ot > 0 ? formatHours(ot) : "",
       isOt: ot > 0,
       perm: perm > 0 ? formatHours(perm) : "",
@@ -188,14 +189,15 @@ export function buildMonthPdf(args: {
   for (const r of report.rows) {
     if (r.isOt) ops.push(`0.94 0.94 0.95 rg 40 ${y(top + ROW_H).toFixed(2)} ${PAGE_W - 80} ${ROW_H} re f`);
     const base = top + 12;
-    const gray = r.rest ? 0.6 : 0;
+    const noTimes = r.times === "—";
+    const gray = noTimes ? 0.6 : 0;
     text(r.label, X_DAY, base, 10, r.isOt, gray);
     text(r.times, X_TIMES, base, 10, r.isOt, gray);
     if (r.hours) textRight(r.hours, X_HOURS, base, 10, r.isOt, gray);
     // Segno pieno al centro della colonna (• in WinAnsi)
     if (r.closing) lock(X_CLOSE, top + ROW_H / 2);
     // Barra di durata, sempre allineata a sinistra: turno breve 15x8 grigio medio, turno lungo 30x8 grigio scuro
-    if (!r.rest) {
+    if (!noTimes) {
       ops.push(`${r.long ? 0.3 : 0.65} g ${X_LONG} ${y(top + ROW_H / 2 + 4).toFixed(2)} ${r.long ? 30 : 15} 8 re f`);
     }
     if (r.perm) textRight(`${r.permKind} ${r.perm}`, X_PERM, base, 10, true);

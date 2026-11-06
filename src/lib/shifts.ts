@@ -13,7 +13,11 @@ export type Overtime = { side: OvertimeSide; min: number } | { side: "all" };
  * (`start` e `end` in "HH:MM"). Le ore di ROL si tolgono dal giorno ma contano nei totali.
  */
 export type LeaveKind = "ferie" | "rol";
-export type Leave = { all: true; kind?: LeaveKind } | { start: string; end: string };
+/** Ferie/ROL in un giorno vuoto (senza turno): solo le ore, tra `LEAVE_STEP_MIN` e `LEAVE_MAX_MIN` minuti. */
+export type Leave = { all: true; kind?: LeaveKind } | { min: number; kind: LeaveKind } | { start: string; end: string };
+
+export const LEAVE_MAX_MIN = 12 * 60;
+export const LEAVE_STEP_MIN = 30;
 
 export type DayData = {
   /** Orario ordinario. */
@@ -121,7 +125,20 @@ export function shiftWithOvertime(base: DayData, ot: Overtime | undefined): DayD
  * (turno meno ROL); le ore di ROL stanno in `leave.min` e vanno sommate ai totali.
  */
 export function shiftWithLeave(base: DayData, leave: Leave | undefined): DayData {
-  if (!base || !leave) return base;
+  if (!leave) return base;
+  if ("min" in leave) {
+    // Solo ore, in un giorno senza turno: l'orario non c'è, il giorno conta 0 ore lavorate.
+    if (base) return base;
+    return {
+      start: "",
+      end: "",
+      total: formatHours(0),
+      endMin: null,
+      shortShift: false,
+      leave: { side: "all", start: "", end: "", min: leave.min, kind: leave.kind },
+    };
+  }
+  if (!base) return base;
   const s = toMinutes(base.start);
   const e = toMinutes(base.end);
   if (s === null || e === null) return base;

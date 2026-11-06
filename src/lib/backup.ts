@@ -36,7 +36,7 @@ const TIME_RE = /^\d{2}:\d{2}$/;
 
 function cleanLeave(raw: unknown): Leave | undefined {
   if (!isRecord(raw)) return undefined;
-  if (raw.all === true) return { all: true };
+  if (raw.all === true) return raw.kind === "ferie" ? { all: true, kind: "ferie" } : { all: true };
   if (typeof raw.start === "string" && typeof raw.end === "string" && TIME_RE.test(raw.start) && TIME_RE.test(raw.end)) {
     return { start: raw.start, end: raw.end };
   }

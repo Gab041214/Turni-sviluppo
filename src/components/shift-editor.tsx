@@ -5,6 +5,8 @@ import { cn } from "@/lib/utils";
 import { hasShiftOverride, type DayOverride } from "@/lib/overrides";
 import {
   formatHours,
+  LEAVE_MAX_MIN,
+  LEAVE_STEP_MIN,
   minutesToTime,
   netMinutes,
   shiftWithLeave,
@@ -20,7 +22,7 @@ import {
 type Panel = "closed" | "edit" | "ot" | "leave";
 type ShiftDraft = { rest: boolean; start: string; end: string };
 type OtDraft = { side: OvertimeSide | "all"; dur: string };
-type LeaveDraft = { all: boolean; start: string; end: string; kind: LeaveKind };
+type LeaveDraft = { all: boolean; start: string; end: string; kind: LeaveKind; dur: string };
 
 function draftFromShift(override: DayOverride | undefined, fileShift: DayData): ShiftDraft {
   if (override && hasShiftOverride(override)) {
@@ -48,9 +50,10 @@ function otDraftFrom(ot: Overtime | undefined, ordinary: DayData, openMin: numbe
 }
 
 function leaveDraftFrom(leave: Leave | undefined): LeaveDraft {
-  if (!leave) return { all: false, start: "", end: "", kind: "rol" };
-  if ("all" in leave) return { all: true, start: "", end: "", kind: leave.kind ?? "rol" };
-  return { all: false, start: leave.start, end: leave.end, kind: "rol" };
+  if (!leave) return { all: false, start: "", end: "", kind: "rol", dur: "00:00" };
+  if ("min" in leave) return { all: false, start: "", end: "", kind: leave.kind, dur: minutesToTime(leave.min) };
+  if ("all" in leave) return { all: true, start: "", end: "", kind: leave.kind ?? "rol", dur: "00:00" };
+  return { all: false, start: leave.start, end: leave.end, kind: "rol", dur: "00:00" };
 }
 
 const cardClass =
@@ -118,9 +121,11 @@ export function DayEditPanels({
   const shiftModified = hasShiftOverride(override);
   const hasOt = !!override?.ot;
   const hasLeave = !!override?.perm;
-  // Straordinario e ROL si escludono a vicenda; per entrambi serve un turno.
+  // Straordinario e ROL si escludono a vicenda; lo straordinario vuole un turno. Le ferie/ROL si possono
+  // inserire anche in un giorno vuoto (solo ore), ma non se è segnato "a riposo".
   const canOvertime = !!ordinary && !hasLeave;
-  const canLeave = !!ordinary && !hasOt;
+  const leaveOnly = !ordinary;
+  const canLeave = leaveOnly ? !override?.rest : !hasOt;
 
   const openEdit = () => {
     setDraft(draftFromShift(override, fileShift));
@@ -138,6 +143,42 @@ export function DayEditPanels({
     setPanel("leave");
   };
   const close = () => setPanel("closed");
+
+  /** Scelta Ferie / ROL che compare toccando Salva per un giorno intero o per un giorno vuoto. */
+  const kindChooser = (onPick: (k: LeaveKind) => void) => (
+            <div className="flex flex-col gap-2.5" role="group" aria-label="Tipo di assenza">
+              <div className="text-[15px] font-semibold text-foreground">Che tipo di assenza è?</div>
+              <div className="flex gap-2">
+                {(["ferie", "rol"] as const).map((k) => {
+                  const on = leaveDraft.kind === k;
+                  return (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => {
+                        onPick(k);
+                        close();
+                      }}
+                      className={cn(
+                        "min-h-11 flex-1 rounded-xl text-[15px] font-semibold",
+                        on ? undefined : "border border-border text-foreground",
+                      )}
+                      style={on ? { backgroundColor: accent, color: accentText } : undefined}
+                    >
+                      {k === "ferie" ? "Ferie" : "ROL"}
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                type="button"
+                onClick={() => setChoosingKind(false)}
+                className="min-h-11 w-full rounded-xl border border-border text-[15px] text-foreground"
+              >
+                Indietro
+              </button>
+            </div>
+  );
 
   if (panel === "closed") {
     // Tre pulsanti sulla stessa riga: testo più piccolo e freccia sotto il nome ("Ferie e ROL" può andare su due righe).
@@ -314,6 +355,98 @@ export function DayEditPanels({
     );
   }
 
+  if (panel === "leave" && leaveOnly) {
+    // Giorno senza turno: servono solo le ore (da 30 minuti fino a 12 ore), non gli orari.
+    const durMin = toMinutes(leaveDraft.dur);
+    const durValid = durMin !== null && durMin > 0 && durMin <= LEAVE_MAX_MIN && durMin % LEAVE_STEP_MIN === 0;
+    const durInfo =
+      durMin === null || durMin === 0
+        ? "Inserisci le ore di ferie o ROL."
+        : durMin > LEAVE_MAX_MIN
+          ? "Al massimo 12 ore."
+          : durMin % LEAVE_STEP_MIN !== 0
+            ? "Le ore vanno inserite a passi di 30 minuti."
+            : `Ore di ferie o ROL: ${formatHours(durMin)}`;
+    return (
+      <div ref={cardRef} className={cardClass}>
+        <button
+          type="button"
+          onClick={close}
+          aria-expanded
+          className="flex w-full items-center justify-between gap-2 rounded-md text-left text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <h3 className="text-lg font-semibold">Ferie e ROL</h3>
+          <span className="inline-flex items-center gap-2.5">
+            {hasLeave && (
+              <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                <span className="size-2 rounded-full" style={{ backgroundColor: accent }} />
+                Aggiunto
+              </span>
+            )}
+            <ChevronDown className="size-5 shrink-0 rotate-180" />
+          </span>
+        </button>
+
+        <div className="mt-1 flex flex-col gap-3">
+          <div className="text-base text-muted-foreground">{subtitle}</div>
+
+          <label className="flex min-w-0 flex-col gap-1 text-xs text-muted-foreground">
+            Inserisci le ore di ferie o ROL (ore e minuti)
+            <input
+              type="time"
+              step={LEAVE_STEP_MIN * 60}
+              value={leaveDraft.dur}
+              onChange={(ev) => setLeaveDraft({ ...leaveDraft, dur: ev.target.value })}
+              className={inputClass}
+              style={{ backgroundColor: "var(--glass-chip)" }}
+            />
+          </label>
+
+          <div className="min-h-5 text-sm text-muted-foreground">{durInfo}</div>
+
+          {choosingKind ? (
+            kindChooser((k) => {
+              if (durValid && durMin !== null) onSaveLeave({ min: durMin, kind: k });
+            })
+          ) : (
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={close}
+                className="min-h-11 flex-1 rounded-xl border border-border text-[15px] text-foreground"
+              >
+                Annulla
+              </button>
+              <button
+                type="button"
+                disabled={!durValid}
+                onClick={() => setChoosingKind(true)}
+                className="min-h-11 flex-1 rounded-xl text-[15px] font-semibold disabled:opacity-40"
+                style={{ backgroundColor: accent, color: accentText }}
+              >
+                Salva
+              </button>
+            </div>
+          )}
+
+          {hasLeave && (
+            <button
+              type="button"
+              onClick={() => {
+                onRemoveLeave();
+                close();
+              }}
+              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-border text-[15px] text-foreground"
+            >
+              <Minus className="size-[18px]" aria-hidden="true" />
+              Rimuovi ferie o ROL
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   if (panel === "leave") {
     const ordStartMin = ordinary ? toMinutes(ordinary.start) : null;
     const ordEndMin = ordinary ? toMinutes(ordinary.end) : null;
@@ -403,38 +536,7 @@ export function DayEditPanels({
           <div className="min-h-5 text-sm text-muted-foreground">{leaveInfo}</div>
 
           {choosingKind ? (
-            <div className="flex flex-col gap-2.5" role="group" aria-label="Tipo di assenza">
-              <div className="text-[15px] font-semibold text-foreground">Che tipo di assenza è?</div>
-              <div className="flex gap-2">
-                {(["ferie", "rol"] as const).map((k) => {
-                  const on = leaveDraft.kind === k;
-                  return (
-                    <button
-                      key={k}
-                      type="button"
-                      onClick={() => {
-                        onSaveLeave({ all: true, kind: k });
-                        close();
-                      }}
-                      className={cn(
-                        "min-h-11 flex-1 rounded-xl text-[15px] font-semibold",
-                        on ? undefined : "border border-border text-foreground",
-                      )}
-                      style={on ? { backgroundColor: accent, color: accentText } : undefined}
-                    >
-                      {k === "ferie" ? "Ferie" : "ROL"}
-                    </button>
-                  );
-                })}
-              </div>
-              <button
-                type="button"
-                onClick={() => setChoosingKind(false)}
-                className="min-h-11 w-full rounded-xl border border-border text-[15px] text-foreground"
-              >
-                Indietro
-              </button>
-            </div>
+            kindChooser((k) => onSaveLeave({ all: true, kind: k }))
           ) : (
             <div className="flex gap-2">
               <button

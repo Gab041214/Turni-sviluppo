@@ -1,5 +1,5 @@
 import type { DayOverride, OverrideStore } from "@/lib/overrides";
-import type { Leave, Overtime } from "@/lib/shifts";
+import { LEAVE_MAX_MIN, type Leave, type Overtime } from "@/lib/shifts";
 
 /** Esportazione e importazione delle modifiche manuali (turni cambiati, straordinari, ferie e ROL) tra dispositivi. */
 
@@ -36,7 +36,10 @@ const TIME_RE = /^\d{2}:\d{2}$/;
 
 function cleanLeave(raw: unknown): Leave | undefined {
   if (!isRecord(raw)) return undefined;
-  if (raw.all === true) return { all: true };
+  if (typeof raw.min === "number" && Number.isFinite(raw.min) && raw.min > 0 && raw.min <= LEAVE_MAX_MIN) {
+    return { min: Math.round(raw.min), kind: raw.kind === "ferie" ? "ferie" : "rol" };
+  }
+  if (raw.all === true) return raw.kind === "ferie" ? { all: true, kind: "ferie" } : { all: true };
   if (typeof raw.start === "string" && typeof raw.end === "string" && TIME_RE.test(raw.start) && TIME_RE.test(raw.end)) {
     return { start: raw.start, end: raw.end };
   }

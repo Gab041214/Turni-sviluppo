@@ -12,7 +12,12 @@ export type Overtime = { side: OvertimeSide; min: number } | { side: "all" };
  * Ferie/ROL: tutto il turno, oppure una fascia che coincide con l'inizio o con la fine del turno
  * (`start` e `end` in "HH:MM"). Le ore di ROL si tolgono dal giorno ma contano nei totali.
  */
-export type Leave = { all: true } | { start: string; end: string };
+export type LeaveKind = "ferie" | "rol";
+/** Ferie/ROL in un giorno vuoto (senza turno): solo le ore, tra `LEAVE_STEP_MIN` e `LEAVE_MAX_MIN` minuti. */
+export type Leave = { all: true; kind?: LeaveKind } | { min: number; kind: LeaveKind } | { start: string; end: string };
+
+export const LEAVE_MAX_MIN = 12 * 60;
+export const LEAVE_STEP_MIN = 30;
 
 export type DayData = {
   /** Orario ordinario. */
@@ -32,7 +37,7 @@ export type DayData = {
    * lavorata; `leave.start`/`leave.end` la fascia di ROL e `leave.min` i minuti di ROL
    * (con "all" l'intero turno, `total` è 0h).
    */
-  leave?: { side: "all" | "start" | "end"; start: string; end: string; min: number };
+  leave?: { side: "all" | "start" | "end"; start: string; end: string; min: number; kind: LeaveKind };
 } | null;
 
 export function toMinutes(value: string): number | null {
@@ -120,18 +125,31 @@ export function shiftWithOvertime(base: DayData, ot: Overtime | undefined): DayD
  * (turno meno ROL); le ore di ROL stanno in `leave.min` e vanno sommate ai totali.
  */
 export function shiftWithLeave(base: DayData, leave: Leave | undefined): DayData {
-  if (!base || !leave) return base;
+  if (!leave) return base;
+  if ("min" in leave) {
+    // Solo ore, in un giorno senza turno: l'orario non c'è, il giorno conta 0 ore lavorate.
+    if (base) return base;
+    return {
+      start: "",
+      end: "",
+      total: formatHours(0),
+      endMin: null,
+      shortShift: false,
+      leave: { side: "all", start: "", end: "", min: leave.min, kind: leave.kind },
+    };
+  }
+  if (!base) return base;
   const s = toMinutes(base.start);
   const e = toMinutes(base.end);
   if (s === null || e === null) return base;
   const net = netMinutes(s, e);
-  const wholeShift = (): DayData => ({
+  const wholeShift = (kind: LeaveKind): DayData => ({
     ...base,
     total: formatHours(0),
     endMin: null,
-    leave: { side: "all", start: base.start, end: base.end, min: net },
+    leave: { side: "all", start: base.start, end: base.end, min: net, kind },
   });
-  if ("all" in leave) return wholeShift();
+  if ("all" in leave) return wholeShift(leave.kind ?? "rol");
   const ls = toMinutes(leave.start);
   const le = toMinutes(leave.end);
   if (ls === null || le === null) return base;
@@ -139,13 +157,13 @@ export function shiftWithLeave(base: DayData, leave: Leave | undefined): DayData
   const gross = span(s, e);
   const min = span(ls, le);
   if (min <= 0) return base;
-  if (ls === s && le === e) return wholeShift();
+  if (ls === s && le === e) return wholeShift("rol");
   const worked = formatHours(Math.max(net - min, 0));
   if (ls === s && min < gross) {
-    return { ...base, start: minutesToTime(le), total: worked, leave: { side: "start", start: minutesToTime(ls), end: minutesToTime(le), min } };
+    return { ...base, start: minutesToTime(le), total: worked, leave: { side: "start", start: minutesToTime(ls), end: minutesToTime(le), min, kind: "rol" } };
   }
   if (le === e && min < gross) {
-    return { ...base, end: minutesToTime(ls), endMin: ls, total: worked, leave: { side: "end", start: minutesToTime(ls), end: minutesToTime(le), min } };
+    return { ...base, end: minutesToTime(ls), endMin: ls, total: worked, leave: { side: "end", start: minutesToTime(ls), end: minutesToTime(le), min, kind: "rol" } };
   }
   return base;
 }

@@ -2097,7 +2097,8 @@ function Index() {
                                     style={{ backgroundColor: isLate ? "var(--app-tile)" : accent }}
                                   />
                                 )}
-                                <span>{data.total}</span>
+                                {/* Ferie/ROL sull'intero turno: nel badge le ore del turno (non quelle lavorate, che sono 0) */}
+                                <span>{leaveAll && data.leave ? formatHours(data.leave.min) : data.total}</span>
                               </span>
                             )}
                           </article>
@@ -2156,26 +2157,35 @@ function Index() {
                                 <span>{data.ot.end}</span>
                               </div>
                             )}
-                            <span
-                              className={cn(
-                                "text-[12px] font-bold sm:text-base",
-                                extraBlock ? "leading-[1.1]" : "leading-tight",
-                                data.ot?.side !== "all" && "text-foreground",
-                              )}
-                              style={data.ot?.side === "all" ? { color: accent } : undefined}
-                            >
-                              {data.start}
-                            </span>
-                            <span
-                              className={cn(
-                                "text-[12px] font-bold sm:text-base",
-                                extraBlock ? "leading-[1.1]" : "leading-tight",
-                                data.ot?.side !== "all" && "text-foreground",
-                              )}
-                              style={data.ot?.side === "all" ? { color: accent } : undefined}
-                            >
-                              {data.end}
-                            </span>
+                            {leaveAll && data.leave ? (
+                              // Ferie/ROL sull'intero turno: l'orario resta salvato ma non si vede
+                              <span className="text-[12px] font-bold leading-tight text-foreground sm:text-base">
+                                {data.leave.kind === "ferie" ? "Ferie" : "ROL"}
+                              </span>
+                            ) : (
+                              <>
+                                <span
+                                  className={cn(
+                                    "text-[12px] font-bold sm:text-base",
+                                    extraBlock ? "leading-[1.1]" : "leading-tight",
+                                    data.ot?.side !== "all" && "text-foreground",
+                                  )}
+                                  style={data.ot?.side === "all" ? { color: accent } : undefined}
+                                >
+                                  {data.start}
+                                </span>
+                                <span
+                                  className={cn(
+                                    "text-[12px] font-bold sm:text-base",
+                                    extraBlock ? "leading-[1.1]" : "leading-tight",
+                                    data.ot?.side !== "all" && "text-foreground",
+                                  )}
+                                  style={data.ot?.side === "all" ? { color: accent } : undefined}
+                                >
+                                  {data.end}
+                                </span>
+                              </>
+                            )}
                             {/* Straordinario aggiunto dopo: corpo più piccolo, sotto una linea sottile */}
                             {otBlock && data.ot?.side === "after" && (
                               <div className="mt-px flex w-[70%] flex-col items-center border-t pt-px text-[9px] font-medium leading-[1.1] sm:mt-0.5 sm:pt-0.5 sm:text-[13px]" style={{ color: accent, borderColor: accent }}>

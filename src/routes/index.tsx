@@ -44,7 +44,7 @@ import {
   type DayOverride,
   type OverrideStore,
 } from "@/lib/overrides";
-import { formatHours, minutesToTime, overallTimes, shiftFromTimes, shiftWithOvertime, toMinutes, type DayData, type Overtime } from "@/lib/shifts";
+import { formatHours, minutesToTime, overallTimes, shiftFromTimes, shiftWithLeave, shiftWithOvertime, toMinutes, type DayData, type Leave, type Overtime } from "@/lib/shifts";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -257,7 +257,7 @@ function contrastTextColor(hex: string): string {
 }
 
 /** Totale settimanale (da domenica a sabato, come nel file Excel). `missing` = primo giorno non coperto da alcun file. */
-type WeekTotal = { sunday: Date; saturday: Date; missing: Date | null; total: number; ordinary: number; overtime: number };
+type WeekTotal = { sunday: Date; saturday: Date; missing: Date | null; total: number; ordinary: number; overtime: number; leave: number };
 type WeekData = { monday: Date | undefined; days: DayData[]; mods: boolean[]; files: DayData[]; tot: WeekTotal | null };
 
 /** "7h30" / "6h" -> minuti (formato prodotto da formatHours). */
@@ -266,12 +266,15 @@ function labelToMinutes(label: string | null | undefined): number {
   return m ? Number(m[1]) * 60 + Number(m[2] ?? 0) : 0;
 }
 
-/** Minuti ordinari e di straordinario di un giorno; il totale del turno comprende già lo straordinario. */
-function dayMinutes(d: DayData): { ordinary: number; overtime: number } {
-  if (!d) return { ordinary: 0, overtime: 0 };
+/**
+ * Minuti ordinari, di straordinario e di ferie/ROL di un giorno; il totale del turno comprende già
+ * lo straordinario. Le ore di ROL non sono nel totale del giorno (lavorate) ma contano nelle settimane.
+ */
+function dayMinutes(d: DayData): { ordinary: number; overtime: number; leave: number } {
+  if (!d) return { ordinary: 0, overtime: 0, leave: 0 };
   const total = labelToMinutes(d.total);
   const overtime = d.ot ? Math.min(labelToMinutes(d.ot.otTotal), total) : 0;
-  return { ordinary: total - overtime, overtime };
+  return { ordinary: total - overtime, overtime, leave: d.leave?.min ?? 0 };
 }
 
 /**
@@ -351,14 +354,20 @@ function offsetMapForName(rows: string[][], name: string, aliases?: Map<string, 
 
 /**
  * Applica le modifiche manuali al turno del file: prima l'orario ordinario inserito a mano
- * (nessun turno se "a riposo"), poi l'eventuale straordinario agganciato all'ordinario.
- * Con `withOvertime = false` restituisce solo l'ordinario.
+ * (nessun turno se "a riposo"), poi l'eventuale straordinario agganciato all'ordinario, oppure
+ * (mai insieme) ferie/ROL. Con `withOvertime = false` restituisce solo l'ordinario.
  */
 function applyOverride(base: DayData, ov: DayOverride | undefined, withOvertime = true): DayData {
   if (!ov) return base;
   let data = base;
   if (hasShiftOverride(ov)) data = ov.rest ? null : shiftFromTimes(ov.start ?? "", ov.end ?? "");
-  return withOvertime ? shiftWithOvertime(data, ov.ot) : data;
+  if (!withOvertime) return data;
+  return ov.ot ? shiftWithOvertime(data, ov.ot) : shiftWithLeave(data, ov.perm);
+}
+
+/** Il ROL resta solo se coincide ancora con l'inizio o la fine del turno (dopo una modifica al turno). */
+function keepLeave(shift: DayData, perm: Leave | undefined): Leave | undefined {
+  return perm && shiftWithLeave(shift, perm)?.leave ? perm : undefined;
 }
 
 function blockData(row: string[], cols: number[]): DayData {
@@ -919,12 +928,15 @@ function Index() {
         const sundayData = applyOverride(resolveDay(selected, sunday)?.data ?? null, overrideFor(sunday, selected));
         let ordinary = 0;
         let overtime = 0;
+        let leave = 0;
         for (const d of [sundayData, ...days.slice(0, 6)]) {
           const m = dayMinutes(d);
           ordinary += m.ordinary;
           overtime += m.overtime;
+          leave += m.leave;
         }
-        tot = { sunday, saturday: addDays(monday, 5), missing: missingDays[0] ?? null, total: ordinary + overtime, ordinary, overtime };
+        // Le ore di ferie/ROL restano nel totale della settimana
+        tot = { sunday, saturday: addDays(monday, 5), missing: missingDays[0] ?? null, total: ordinary + overtime + leave, ordinary, overtime, leave };
       }
       return { monday, days, mods, files: fileShifts, tot };
     });
@@ -1134,7 +1146,8 @@ function Index() {
     for (const name of options) {
       const ov = overrideFor(popupDate, name);
       const data = applyOverride(resolveDay(name, popupDate)?.data ?? null, ov);
-      if (!data) continue;
+      // Chi è in ferie o ROL tutto il giorno non apre né chiude.
+      if (!data || data.leave?.side === "all") continue;
       // Con lo straordinario contano il primo ingresso e l'ultima uscita del giorno.
       const { start, end } = overallTimes(data);
       const s = toMinutes(start);
@@ -1978,6 +1991,11 @@ function Index() {
                   const isLate = !!data && data.endMin !== null && closeMin !== undefined && data.endMin >= closeMin;
                   // Straordinario a blocco (prima/dopo): ha orari propri; "tutto il turno" no.
                   const otBlock = !!data?.ot && data.ot.side !== "all";
+                  // Ferie/ROL: a inizio o fine turno ha orari propri (tenui); a intero turno attenua il contenuto.
+                  const leaveBlock = !!data?.leave && data.leave.side !== "all";
+                  const leaveAll = data?.leave?.side === "all";
+                  const extraBlock = otBlock || leaveBlock;
+                  const fadedClass = "opacity-30 grayscale-[0.6]";
                   // Giorni dei mesi vicini (stessa settimana): tinte attenuate, tranne con un riquadro aperto.
                   const outside = !!date && !!month && !isSameMonth(date, month);
                   const peekOpen = peekKey === `${weekIdx}-${i}` || peekKey === `ot-${weekIdx}-${i}`;
@@ -2005,6 +2023,7 @@ function Index() {
                           className={cn(
                             "block truncate rounded-full px-2 text-[12px] sm:text-[16px]",
                             today && !data && `day-today-date day-today-${todayStyle} border-2 border-foreground`,
+                            leaveAll && fadedClass,
                           )}
                           style={{ color: "var(--app-date)" }}
                         >
@@ -2055,7 +2074,7 @@ function Index() {
                           <article
                             className={cn(
                               "day-tile absolute inset-x-0 bottom-0 flex flex-col items-center justify-end rounded-xl p-1 sm:rounded-2xl sm:p-2",
-                              otBlock && "sm:pb-1.5",
+                              extraBlock && "sm:pb-1.5",
                               today ? `day-today day-today-${todayStyle} border-2 border-foreground` : "border",
                             )}
                             style={{ height: data.shortShift ? "70%" : "100%" }}
@@ -2066,6 +2085,7 @@ function Index() {
                                   "flex w-full items-center justify-center gap-[3px] whitespace-nowrap rounded-md px-1 py-[2px] text-center text-[10px] font-medium leading-none sm:gap-1 sm:rounded-xl sm:px-2 sm:py-[3px] sm:text-xs",
                                   isLate ? undefined : "bg-[var(--app-tile-chip)] text-foreground",
                                   data.ot && "gap-[2px] px-0.5 text-[9px]",
+                                  leaveAll && fadedClass,
                                 )}
                                 style={isLate ? { backgroundColor: accent, color: contrastTextColor(accent) } : undefined}
                               >
@@ -2118,9 +2138,17 @@ function Index() {
                           <div
                             className={cn(
                               "absolute inset-x-0 z-10 flex flex-col items-center px-1 text-center sm:px-2",
-                              otBlock ? "top-[21px] gap-px sm:top-[38px] sm:gap-0.5" : "top-[36px] gap-0.5 sm:top-[55px] sm:gap-1",
+                              extraBlock ? "top-[21px] gap-px sm:top-[38px] sm:gap-0.5" : "top-[36px] gap-0.5 sm:top-[55px] sm:gap-1",
+                              leaveAll && fadedClass,
                             )}
                           >
+                            {/* ROL a inizio turno: sta sopra l'orario lavorato, con la linea sotto, in tinta tenue */}
+                            {leaveBlock && data.leave?.side === "start" && (
+                              <div className={cn("mb-px flex w-[70%] flex-col items-center border-b border-foreground pb-px text-[9px] font-medium leading-[1.1] text-foreground sm:mb-0.5 sm:pb-0.5 sm:text-[13px]", fadedClass)}>
+                                <span>{data.leave.start}</span>
+                                <span>{data.leave.end}</span>
+                              </div>
+                            )}
                             {/* Straordinario aggiunto prima: sta sopra l'ordinario, con la linea sotto */}
                             {otBlock && data.ot?.side === "before" && (
                               <div className="mb-px flex w-[70%] flex-col items-center border-b pb-px text-[9px] font-medium leading-[1.1] sm:mb-0.5 sm:pb-0.5 sm:text-[13px]" style={{ color: accent, borderColor: accent }}>
@@ -2131,7 +2159,7 @@ function Index() {
                             <span
                               className={cn(
                                 "text-[12px] font-bold sm:text-base",
-                                otBlock ? "leading-[1.1]" : "leading-tight",
+                                extraBlock ? "leading-[1.1]" : "leading-tight",
                                 data.ot?.side !== "all" && "text-foreground",
                               )}
                               style={data.ot?.side === "all" ? { color: accent } : undefined}
@@ -2141,7 +2169,7 @@ function Index() {
                             <span
                               className={cn(
                                 "text-[12px] font-bold sm:text-base",
-                                otBlock ? "leading-[1.1]" : "leading-tight",
+                                extraBlock ? "leading-[1.1]" : "leading-tight",
                                 data.ot?.side !== "all" && "text-foreground",
                               )}
                               style={data.ot?.side === "all" ? { color: accent } : undefined}
@@ -2153,6 +2181,13 @@ function Index() {
                               <div className="mt-px flex w-[70%] flex-col items-center border-t pt-px text-[9px] font-medium leading-[1.1] sm:mt-0.5 sm:pt-0.5 sm:text-[13px]" style={{ color: accent, borderColor: accent }}>
                                 <span>{data.ot.start}</span>
                                 <span>{data.ot.end}</span>
+                              </div>
+                            )}
+                            {/* ROL a fine turno: corpo più piccolo, sotto una linea sottile, in tinta tenue */}
+                            {leaveBlock && data.leave?.side === "end" && (
+                              <div className={cn("mt-px flex w-[70%] flex-col items-center border-t border-foreground pt-px text-[9px] font-medium leading-[1.1] text-foreground sm:mt-0.5 sm:pt-0.5 sm:text-[13px]", fadedClass)}>
+                                <span>{data.leave.start}</span>
+                                <span>{data.leave.end}</span>
                               </div>
                             )}
                           </div>
@@ -2234,6 +2269,12 @@ function Index() {
                               <span className="text-muted-foreground">Straordinario</span>
                               <span className="font-semibold">{formatHours(t.overtime)}</span>
                             </div>
+                            {t.leave > 0 && (
+                              <div className="mt-0.5 flex justify-between text-[13px]">
+                                <span className="text-muted-foreground">Ferie/ROL</span>
+                                <span className="font-semibold">{formatHours(t.leave)}</span>
+                              </div>
+                            )}
                           </>
                         )}
                       </div>
@@ -2317,11 +2358,15 @@ function Index() {
                   end: shift.end,
                   // Se il giorno passa a riposo lo straordinario non ha più un ordinario a cui agganciarsi.
                   ot: shift.rest ? undefined : cur.ot,
+                  // Il ROL resta solo se coincide ancora con inizio o fine del nuovo orario.
+                  perm: shift.rest ? undefined : keepLeave(shiftFromTimes(shift.start, shift.end), cur.perm),
                 }))
               }
-              onResetShift={() => changeOverride((cur) => ({ ot: cur.ot }))}
-              onSaveOvertime={(ot: Overtime) => changeOverride((cur) => ({ ...cur, ot }))}
+              onResetShift={() => changeOverride((cur) => ({ ot: cur.ot, perm: keepLeave(selectedFileShift, cur.perm) }))}
+              onSaveOvertime={(ot: Overtime) => changeOverride((cur) => ({ rest: cur.rest, start: cur.start, end: cur.end, ot }))}
               onRemoveOvertime={() => changeOverride((cur) => ({ rest: cur.rest, start: cur.start, end: cur.end }))}
+              onSaveLeave={(perm: Leave) => changeOverride((cur) => ({ rest: cur.rest, start: cur.start, end: cur.end, perm }))}
+              onRemoveLeave={() => changeOverride((cur) => ({ rest: cur.rest, start: cur.start, end: cur.end }))}
               onOpenChange={setPanelOpen}
             />
           )}

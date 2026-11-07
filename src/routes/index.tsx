@@ -360,7 +360,7 @@ function offsetMapForName(rows: string[][], name: string, aliases?: Map<string, 
 function applyOverride(base: DayData, ov: DayOverride | undefined, withOvertime = true): DayData {
   if (!ov) return base;
   let data = base;
-  if (hasShiftOverride(ov)) data = ov.rest ? null : shiftFromTimes(ov.start ?? "", ov.end ?? "");
+  if (hasShiftOverride(ov)) data = ov.rest ? null : shiftFromTimes(ov.start ?? "", ov.end ?? "", ov.brk);
   if (!withOvertime) return data;
   return ov.ot ? shiftWithOvertime(data, ov.ot) : shiftWithLeave(data, ov.perm);
 }
@@ -2378,17 +2378,18 @@ function Index() {
                   rest: shift.rest,
                   start: shift.start,
                   end: shift.end,
+                  brk: shift.rest ? undefined : shift.brk,
                   // Se il giorno passa a riposo lo straordinario non ha più un ordinario a cui agganciarsi.
                   ot: shift.rest ? undefined : cur.ot,
                   // Il ROL resta solo se coincide ancora con inizio o fine del nuovo orario.
-                  perm: shift.rest ? undefined : keepLeave(shiftFromTimes(shift.start, shift.end), cur.perm),
+                  perm: shift.rest ? undefined : keepLeave(shiftFromTimes(shift.start, shift.end, shift.brk), cur.perm),
                 }))
               }
               onResetShift={() => changeOverride((cur) => ({ ot: cur.ot, perm: keepLeave(selectedFileShift, cur.perm) }))}
-              onSaveOvertime={(ot: Overtime) => changeOverride((cur) => ({ rest: cur.rest, start: cur.start, end: cur.end, ot }))}
-              onRemoveOvertime={() => changeOverride((cur) => ({ rest: cur.rest, start: cur.start, end: cur.end }))}
-              onSaveLeave={(perm: Leave) => changeOverride((cur) => ({ rest: cur.rest, start: cur.start, end: cur.end, perm }))}
-              onRemoveLeave={() => changeOverride((cur) => ({ rest: cur.rest, start: cur.start, end: cur.end }))}
+              onSaveOvertime={(ot: Overtime) => changeOverride((cur) => ({ rest: cur.rest, start: cur.start, end: cur.end, brk: cur.brk, ot }))}
+              onRemoveOvertime={() => changeOverride((cur) => ({ rest: cur.rest, start: cur.start, end: cur.end, brk: cur.brk }))}
+              onSaveLeave={(perm: Leave) => changeOverride((cur) => ({ rest: cur.rest, start: cur.start, end: cur.end, brk: cur.brk, perm }))}
+              onRemoveLeave={() => changeOverride((cur) => ({ rest: cur.rest, start: cur.start, end: cur.end, brk: cur.brk }))}
               onOpenChange={setPanelOpen}
             />
           )}

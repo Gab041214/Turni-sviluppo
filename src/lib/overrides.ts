@@ -4,11 +4,12 @@ import type { Leave, Overtime } from "@/lib/shifts";
 
 /**
  * Modifiche manuali di un giorno per un nominativo:
- * - turno: `rest` è definito (true = giorno a riposo, false = orario `start`–`end` inserito a mano);
+ * - turno: `rest` è definito (true = giorno a riposo, false = orario `start`–`end` inserito a mano, con la
+ *   pausa `brk` scelta a mano: 0, 30 o 60 minuti; se manca vale la regola automatica);
  * - straordinario: `ot`, agganciato all'orario ordinario (quello del file o quello modificato);
  * - ferie/ROL: `perm`, a inizio o fine turno oppure tutto il turno (mai insieme allo straordinario).
  */
-export type DayOverride = { rest?: boolean; start?: string; end?: string; ot?: Overtime; perm?: Leave };
+export type DayOverride = { rest?: boolean; start?: string; end?: string; brk?: number; ot?: Overtime; perm?: Leave };
 
 /** mese (yyyy-MM) -> giorno (yyyy-MM-dd) -> nominativo -> modifiche */
 export type OverrideStore = Record<string, Record<string, Record<string, DayOverride>>>;

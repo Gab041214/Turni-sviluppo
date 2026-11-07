@@ -53,7 +53,7 @@ function overtimeMinutes(data: DayData): number {
   const s = toMinutes(data.ot.start);
   const e = toMinutes(data.ot.end);
   if (s === null || e === null) return 0;
-  if (data.ot.side === "all") return netMinutes(s, e);
+  if (data.ot.side === "all") return netMinutes(s, e, data.brk);
   return (((e - s) % 1440) + 1440) % 1440;
 }
 

@@ -30,6 +30,8 @@ export type DayData = {
    */
   endMin: number | null;
   shortShift: boolean;
+  /** Pausa scelta a mano (minuti: 0, 30 o 60); assente = regola automatica. */
+  brk?: number;
   /** Orari dello straordinario, se presente. */
   ot?: { side: OvertimeSide | "all"; start: string; end: string; otTotal: string };
   /**
@@ -62,29 +64,44 @@ export function minutesToTime(minutes: number): string {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
-/** Ore nette di un turno: fine prima dell'inizio = oltre la mezzanotte; oltre 8h si toglie 1h di pausa. */
-export function netMinutes(startMin: number, endMin: number): number {
-  let diff = endMin - startMin;
-  if (diff < 0) diff += 24 * 60;
-  if (diff > BREAK_AFTER_MIN) diff -= BREAK_MIN;
-  return Math.max(diff, 0);
+/** Durata lorda di un turno (fine prima dell'inizio = oltre la mezzanotte). */
+export function grossMinutes(startMin: number, endMin: number): number {
+  const diff = endMin - startMin;
+  return diff < 0 ? diff + 24 * 60 : diff;
+}
+
+/** Pausa automatica: oltre 8h lorde si toglie 1h. */
+export function autoBreakMin(gross: number): number {
+  return gross > BREAK_AFTER_MIN ? BREAK_MIN : 0;
+}
+
+/** Pause che si possono scegliere a mano (minuti). */
+export const BREAK_CHOICES = [30, 60] as const;
+
+/**
+ * Ore nette di un turno: fine prima dell'inizio = oltre la mezzanotte. `brk` è la pausa scelta a
+ * mano (0, 30 o 60 minuti); se manca vale la regola automatica (oltre 8h si toglie 1h).
+ */
+export function netMinutes(startMin: number, endMin: number, brk?: number): number {
+  const gross = grossMinutes(startMin, endMin);
+  return Math.max(gross - (brk ?? autoBreakMin(gross)), 0);
 }
 
 /** Costruisce il turno (con totale, fine in minuti e "corto") a partire da inizio e fine. */
-export function shiftFromTimes(start: string, end: string): DayData {
+export function shiftFromTimes(start: string, end: string, brk?: number): DayData {
   const s = toMinutes(start);
   const e = toMinutes(end);
   let total: string | null = null;
   let shortShift = false;
   if (s !== null && e !== null) {
-    const net = netMinutes(s, e);
+    const net = netMinutes(s, e, brk);
     shortShift = net < SHORT_SHIFT_MIN;
     total = formatHours(net);
   }
   // Orari mostrati sempre come HH:MM, qualunque formato abbia la cella del file (es. "10.00").
   const label = (raw: string, min: number | null) =>
     min === null ? raw : `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
-  return { start: label(start, s), end: label(end, e), total, endMin: e, shortShift };
+  return { start: label(start, s), end: label(end, e), total, endMin: e, shortShift, ...(brk !== undefined ? { brk } : {}) };
 }
 
 /**
@@ -98,7 +115,7 @@ export function shiftWithOvertime(base: DayData, ot: Overtime | undefined): DayD
   if (s === null || e === null) return base;
   if (ot.side === "all") {
     // Tutto il turno è straordinario: orari e totale restano quelli del turno.
-    return { ...base, ot: { side: "all", start: base.start, end: base.end, otTotal: formatHours(netMinutes(s, e)) } };
+    return { ...base, ot: { side: "all", start: base.start, end: base.end, otTotal: formatHours(netMinutes(s, e, base.brk)) } };
   }
   if (ot.min <= 0) return base;
   const day = 24 * 60;
@@ -107,7 +124,7 @@ export function shiftWithOvertime(base: DayData, ot: Overtime | undefined): DayD
   const endMin = ot.side === "after" ? e + ot.min : base.endMin;
   return {
     ...base,
-    total: formatHours(netMinutes(s, e) + ot.min),
+    total: formatHours(netMinutes(s, e, base.brk) + ot.min),
     endMin,
     shortShift: false,
     ot: {
@@ -142,7 +159,7 @@ export function shiftWithLeave(base: DayData, leave: Leave | undefined): DayData
   const s = toMinutes(base.start);
   const e = toMinutes(base.end);
   if (s === null || e === null) return base;
-  const net = netMinutes(s, e);
+  const net = netMinutes(s, e, base.brk);
   const wholeShift = (kind: LeaveKind): DayData => ({
     ...base,
     total: formatHours(0),

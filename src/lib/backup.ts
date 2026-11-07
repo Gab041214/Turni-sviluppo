@@ -55,6 +55,7 @@ function cleanOverride(raw: unknown): DayOverride | undefined {
       if (typeof raw.start !== "string" || typeof raw.end !== "string") return undefined;
       out.start = raw.start;
       out.end = raw.end;
+      if (raw.brk === 0 || raw.brk === 30 || raw.brk === 60) out.brk = raw.brk;
     }
   }
   const ot = cleanOvertime(raw.ot);

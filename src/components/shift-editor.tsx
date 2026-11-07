@@ -4,7 +4,9 @@ import { ChevronDown, Minus, Undo2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { hasShiftOverride, type DayOverride } from "@/lib/overrides";
 import {
+  autoBreakMin,
   formatHours,
+  grossMinutes,
   LEAVE_MAX_MIN,
   LEAVE_STEP_MIN,
   minutesToTime,
@@ -20,14 +22,15 @@ import {
 } from "@/lib/shifts";
 
 type Panel = "closed" | "edit" | "ot" | "leave";
-type ShiftDraft = { rest: boolean; start: string; end: string };
+/** `brk`: pausa scelta a mano (0, 30 o 60 minuti); assente = regola automatica. */
+type ShiftDraft = { rest: boolean; start: string; end: string; brk?: number };
 type OtDraft = { side: OvertimeSide | "all"; dur: string };
 type LeaveDraft = { all: boolean; start: string; end: string; kind: LeaveKind; dur: string };
 
 function draftFromShift(override: DayOverride | undefined, fileShift: DayData): ShiftDraft {
   if (override && hasShiftOverride(override)) {
     if (override.rest) return { rest: true, start: "", end: "" };
-    return { rest: false, start: override.start ?? "", end: override.end ?? "" };
+    return { rest: false, start: override.start ?? "", end: override.end ?? "", brk: override.brk };
   }
   if (!fileShift) return { rest: false, start: "", end: "" };
   const s = toMinutes(fileShift.start);
@@ -241,11 +244,38 @@ export function DayEditPanels({
     const e = toMinutes(draft.end);
     const timesOk = s !== null && e !== null && draft.start !== draft.end;
     const valid = draft.rest || timesOk;
+    // Pausa pranzo: se non è stata scelta a mano vale la regola automatica (oltre 8h lorde, 1h).
+    const gross = s !== null && e !== null ? grossMinutes(s, e) : 0;
+    const autoBrk = autoBreakMin(gross);
+    const brk = draft.brk ?? autoBrk;
     const info = draft.rest
       ? "Il giorno resterà senza turno."
       : timesOk
-        ? `Ore lavorate: ${formatHours(netMinutes(s, e))}`
+        ? `Ore lavorate: ${formatHours(netMinutes(s, e, brk))}`
         : "Inserisci inizio e fine del turno.";
+    const infoNote = !draft.rest && timesOk && brk > 0 ? `(${formatHours(gross)} − pausa ${brk === 30 ? "30 min" : "1h"})` : "";
+    const toggleBrk = (value: 30 | 60) => setDraft({ ...draft, brk: brk === value ? 0 : value });
+    const breakSwitch = (value: 30 | 60, label: string) => (
+      <span className="inline-flex items-center gap-2">
+        <span id={`shift-brk-${value}`} className="text-[13px] text-muted-foreground">
+          {label}
+        </span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={brk === value}
+          aria-labelledby={`shift-brk-${value}`}
+          onClick={() => toggleBrk(value)}
+          className="relative h-8 w-[52px] shrink-0 rounded-full"
+          style={{ backgroundColor: brk === value ? accent : "var(--app-switch-off)" }}
+        >
+          <span
+            className="absolute top-[3px] size-[26px] rounded-full bg-white shadow"
+            style={{ left: brk === value ? 23 : 3 }}
+          />
+        </button>
+      </span>
+    );
 
     return (
       <div ref={cardRef} className={cardClass}>
@@ -270,26 +300,6 @@ export function DayEditPanels({
         <div className="mt-1 flex flex-col gap-3">
           <div className="text-base text-muted-foreground">{subtitle}</div>
 
-          <div className="flex min-h-11 items-center justify-between gap-3">
-            <span id="shift-rest-label" className="text-[15px] text-foreground">
-              Nessun turno (a riposo)
-            </span>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={draft.rest}
-              aria-labelledby="shift-rest-label"
-              onClick={() => setDraft({ ...draft, rest: !draft.rest })}
-              className="relative h-8 w-[52px] shrink-0 rounded-full"
-              style={{ backgroundColor: draft.rest ? accent : "var(--app-switch-off)" }}
-            >
-              <span
-                className="absolute top-[3px] size-[26px] rounded-full bg-white shadow"
-                style={{ left: draft.rest ? 23 : 3 }}
-              />
-            </button>
-          </div>
-
           <div className={cn("grid grid-cols-2 gap-2.5", draft.rest && "pointer-events-none opacity-40")}>
             <label className="flex min-w-0 flex-col gap-1 text-xs text-muted-foreground">
               Inizio
@@ -313,7 +323,38 @@ export function DayEditPanels({
             </label>
           </div>
 
-          <div className="min-h-5 text-sm text-muted-foreground">{info}</div>
+          <div className={cn("flex min-h-11 items-center justify-between gap-3", draft.rest && "pointer-events-none opacity-40")}>
+            <span className="text-[15px] text-foreground">Pausa pranzo</span>
+            <span className="inline-flex items-center gap-3">
+              {breakSwitch(30, "30 min")}
+              {breakSwitch(60, "1 h")}
+            </span>
+          </div>
+
+          <div className="flex min-h-11 items-center justify-between gap-3">
+            <span id="shift-rest-label" className="text-[15px] text-foreground">
+              Nessun turno (a riposo)
+            </span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={draft.rest}
+              aria-labelledby="shift-rest-label"
+              onClick={() => setDraft({ ...draft, rest: !draft.rest })}
+              className="relative h-8 w-[52px] shrink-0 rounded-full"
+              style={{ backgroundColor: draft.rest ? accent : "var(--app-switch-off)" }}
+            >
+              <span
+                className="absolute top-[3px] size-[26px] rounded-full bg-white shadow"
+                style={{ left: draft.rest ? 23 : 3 }}
+              />
+            </button>
+          </div>
+
+          <div className="min-h-5 text-sm text-muted-foreground">
+            {info}
+            {infoNote && <span className="ml-1.5 text-xs">{infoNote}</span>}
+          </div>
 
           <div className="flex gap-2">
             <button
@@ -327,7 +368,7 @@ export function DayEditPanels({
               type="button"
               disabled={!valid}
               onClick={() => {
-                onSaveShift(draft.rest ? { rest: true, start: "", end: "" } : draft);
+                onSaveShift(draft.rest ? { rest: true, start: "", end: "" } : { ...draft, brk: draft.brk !== undefined && draft.brk !== autoBrk ? draft.brk : undefined });
                 close();
               }}
               className="min-h-11 flex-1 rounded-xl text-[15px] font-semibold disabled:opacity-40"
@@ -450,7 +491,7 @@ export function DayEditPanels({
   if (panel === "leave") {
     const ordStartMin = ordinary ? toMinutes(ordinary.start) : null;
     const ordEndMin = ordinary ? toMinutes(ordinary.end) : null;
-    const ordHours = ordStartMin !== null && ordEndMin !== null ? formatHours(netMinutes(ordStartMin, ordEndMin)) : "";
+    const ordHours = ordStartMin !== null && ordEndMin !== null ? formatHours(netMinutes(ordStartMin, ordEndMin, ordinary?.brk)) : "";
     const draftLeave: Leave | null = leaveDraft.all
       ? { all: true }
       : leaveDraft.start && leaveDraft.end
@@ -593,7 +634,7 @@ export function DayEditPanels({
       : null;
   const ordStart = ordinary ? toMinutes(ordinary.start) : null;
   const ordEnd = ordinary ? toMinutes(ordinary.end) : null;
-  const ordinaryHours = ordStart !== null && ordEnd !== null ? formatHours(netMinutes(ordStart, ordEnd)) : "";
+  const ordinaryHours = ordStart !== null && ordEnd !== null ? formatHours(netMinutes(ordStart, ordEnd, ordinary?.brk)) : "";
   const info =
     preview && preview.ot
       ? `Straordinario ${preview.ot.start} – ${preview.ot.end}. Totale con ordinario: ${preview.total ?? ""}`

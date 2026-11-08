@@ -1522,13 +1522,13 @@ function Index() {
                               aria-label={`Colore ${i + 1}`}
                               aria-pressed={i === accentIdx}
                               onClick={() => setAccentIndex(i)}
-                              className="flex h-8 w-[26px] items-center justify-center"
+                              className={cn(
+                                "flex h-8 w-[26px] items-center justify-center rounded-[9px]",
+                                i === accentIdx && "bg-card shadow-sm",
+                              )}
                             >
                               <span
-                                className={cn(
-                                  "size-[22px] rounded-full border",
-                                  i === accentIdx ? "border-foreground ring-[1.5px] ring-foreground" : "border-black/10",
-                                )}
+                                className="size-5 rounded-full border border-black/10"
                                 style={{ backgroundColor: isDark ? pair.dark : pair.light }}
                               />
                             </button>

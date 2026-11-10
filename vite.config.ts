@@ -49,7 +49,7 @@ export default defineConfig({
             handler: "NetworkFirst",
             options: {
               cacheName: "html-navigations",
-              networkTimeoutSeconds: 5,
+              networkTimeoutSeconds: 1,
             },
           },
           {

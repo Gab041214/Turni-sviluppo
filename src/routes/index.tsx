@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from "react";
-import { Trash2, Users, Keyboard, Plus, ChevronDown, ChevronLeft, ChevronRight, Check, Sun, Moon, Monitor, Settings, FileText, ArrowRight, ArrowLeftRight, X } from "lucide-react";
+import { Trash2, Users, Keyboard, Plus, ChevronDown, ChevronLeft, ChevronRight, Check, Sun, Moon, Monitor, Settings, FileText, CalendarPlus, ArrowRight, ArrowLeftRight, X } from "lucide-react";
 import { format, addDays, isToday, startOfMonth, endOfMonth, isSameMonth, startOfWeek, getDay, differenceInCalendarWeeks, differenceInCalendarDays, getDaysInMonth, subMonths } from "date-fns";
 import { it } from "date-fns/locale";
 
@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils";
 import { useThemePref, type ThemePref } from "@/lib/theme";
 import { DayEditPanels } from "@/components/shift-editor";
 import { buildBackup, countOverrides, mergeOverrides, parseBackup, saveJson } from "@/lib/backup";
+import { buildMonthIcs, countIcsEvents, saveIcs } from "@/lib/month-ics";
 import { buildMonthPdf, buildMonthReport, savePdf, type MonthRow } from "@/lib/month-report";
 import { fileAnchor, loadFiles, saveFiles, trimFiles, type FileStore } from "@/lib/files";
 import {
@@ -1194,7 +1195,7 @@ function Index() {
   const canEditShift = hasFiles && !!selected;
 
   // Tutti i giorni del mese mostrato, con il turno finale (modifiche e straordinari compresi).
-  const monthReport = useMemo(() => {
+  const monthDays = useMemo(() => {
     const days: MonthRow[] = [];
     if (month && selected) {
       const count = getDaysInMonth(month);
@@ -1203,9 +1204,10 @@ function Index() {
         days.push({ date, data: applyOverride(resolveDay(selected, date)?.data ?? null, overrideFor(date, selected)) });
       }
     }
-    // Orari di chiusura per giorno della settimana (Orari di esercizio): servono al lucchetto "Chiusura" del PDF
-    return buildMonthReport(days, hours.map((h) => h.close));
-  }, [month, selected, resolveDay, overrideFor, hours]);
+    return days;
+  }, [month, selected, resolveDay, overrideFor]);
+  // Orari di chiusura per giorno della settimana (Orari di esercizio): servono al lucchetto "Chiusura" del PDF
+  const monthReport = useMemo(() => buildMonthReport(monthDays, hours.map((h) => h.close)), [monthDays, hours]);
   // Se mancano dei giorni il totale è parziale.
   const partialNote = notice?.partial ?? null;
   const monthLabel = month ? format(month, "MMMM yyyy", { locale: it }).replace(/^./, (c) => c.toUpperCase()) : "";
@@ -1223,6 +1225,18 @@ function Index() {
     });
     const safeName = selected.replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "") || "turni";
     void savePdf(bytes, `Turni-${safeName}-${format(month!, "yyyy-MM")}.pdf`);
+  };
+  // Esporta il mese mostrato nel calendario del telefono (file .ics): un evento per ogni turno, ferie o ROL.
+  const exportCalendar = () => {
+    if (!hasMonth) return;
+    if (countIcsEvents(monthDays) === 0) {
+      setBackupNote({ title: "Nessun evento da esportare", body: "In questo mese non ci sono turni, ferie o ROL." });
+      return;
+    }
+    setSettingsOpen(false);
+    setOvertimeOpen(false);
+    const safeName = selected.replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "") || "turni";
+    void saveIcs(buildMonthIcs(selected, monthDays), `Turni-${safeName}-${format(month!, "yyyy-MM")}.ics`);
   };
   // Esporta le modifiche di tutti i mesi in un file; sui telefoni si apre la condivisione.
   const exportBackup = () => {
@@ -1572,27 +1586,37 @@ function Index() {
                     {advancedOpen && (
                       <div className="animate-in fade-in-0 slide-in-from-top-1 -mx-3.5 min-h-0 overflow-y-auto overscroll-contain px-3.5 pt-1 duration-200 motion-reduce:animate-none">
                     <p className="mb-1.5 text-xs font-medium text-muted-foreground">Mese</p>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-stretch gap-2">
                       <button
                         type="button"
                         disabled={!hasMonth}
                         aria-expanded={overtimeOpen}
                         onClick={toggleOvertime}
-                        className="flex min-h-11 min-w-0 flex-1 items-center justify-between gap-1 rounded-[14px] px-2.5 text-left text-sm font-semibold text-foreground disabled:opacity-40"
+                        className="flex min-h-[58px] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-[14px] px-1 text-[12px] font-semibold text-foreground disabled:opacity-40"
                         style={{ backgroundColor: "var(--glass-chip)" }}
                       >
+                        <ChevronDown className={cn("size-5 shrink-0 transition-transform duration-200", overtimeOpen && "rotate-180")} />
                         Straordinari
-                        <ChevronDown className={cn("size-4 shrink-0 transition-transform duration-200", overtimeOpen && "rotate-180")} />
                       </button>
                       <button
                         type="button"
                         disabled={!hasMonth}
                         onClick={generatePdf}
-                        className="flex min-h-11 min-w-0 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-[14px] px-2 text-sm font-semibold text-foreground disabled:opacity-40"
+                        className="flex min-h-[58px] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-[14px] px-1 text-[12px] font-semibold text-foreground disabled:opacity-40"
                         style={{ backgroundColor: "var(--glass-chip)" }}
                       >
-                        <FileText className="size-4 shrink-0" />
-                        Genera PDF
+                        <FileText className="size-5 shrink-0" />
+                        PDF
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!hasMonth}
+                        onClick={exportCalendar}
+                        className="flex min-h-[58px] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-[14px] px-1 text-[12px] font-semibold text-foreground disabled:opacity-40"
+                        style={{ backgroundColor: "var(--glass-chip)" }}
+                      >
+                        <CalendarPlus className="size-5 shrink-0" />
+                        Calendario
                       </button>
                     </div>
                       {overtimeOpen && hasMonth && (

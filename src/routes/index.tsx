@@ -30,7 +30,7 @@ import { cn } from "@/lib/utils";
 import { useThemePref, type ThemePref } from "@/lib/theme";
 import { DayEditPanels } from "@/components/shift-editor";
 import { buildBackup, countOverrides, mergeOverrides, parseBackup, saveJson } from "@/lib/backup";
-import { buildMonthIcs, countIcsEvents, saveIcs } from "@/lib/month-ics";
+import { buildMonthIcs, countIcsEvents, openIcs } from "@/lib/month-ics";
 import { buildMonthPdf, buildMonthReport, savePdf, type MonthRow } from "@/lib/month-report";
 import { fileAnchor, loadFiles, saveFiles, trimFiles, type FileStore } from "@/lib/files";
 import {
@@ -1236,7 +1236,7 @@ function Index() {
     setSettingsOpen(false);
     setOvertimeOpen(false);
     const safeName = selected.replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "") || "turni";
-    void saveIcs(buildMonthIcs(selected, monthDays), `Turni-${safeName}-${format(month!, "yyyy-MM")}.ics`);
+    void openIcs(buildMonthIcs(selected, monthDays, hours), `Turni-${safeName}-${format(month!, "yyyy-MM")}.ics`);
   };
   // Esporta le modifiche di tutti i mesi in un file; sui telefoni si apre la condivisione.
   const exportBackup = () => {

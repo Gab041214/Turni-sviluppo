@@ -1,3 +1,4 @@
+import { weekdayIndex } from "@/lib/hours";
 import { autoBreakMin, formatHours, grossMinutes, overallTimes, toMinutes, type DayData } from "@/lib/shifts";
 
 /**
@@ -8,6 +9,8 @@ import { autoBreakMin, formatHours, grossMinutes, overallTimes, toMinutes, type 
  */
 
 export type IcsDay = { date: Date; data: DayData };
+/** Orari di esercizio di un giorno della settimana, in minuti dalla mezzanotte (stesso indice di weekdayIndex). */
+export type IcsHours = { open: number; close: number };
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const dateStr = (d: Date) => `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
@@ -44,6 +47,29 @@ function fold(line: string): string {
   return parts.join("\r\n ");
 }
 
+/** Ore nel titolo: "8h", "8h30min", "30min". */
+function hoursLabel(m: number): string {
+  if (m < 60) return `${m}min`;
+  const h = Math.floor(m / 60);
+  const r = m % 60;
+  return r === 0 ? `${h}h` : `${h}h${String(r).padStart(2, "0")}min`;
+}
+
+/** "8h30" (formato dell'app) -> 510. */
+function workedMinutes(total: string | null): number {
+  const m = total?.match(/^(\d+)h(?:(\d{2}))?$/);
+  return m ? Number(m[1]) * 60 + Number(m[2] ?? 0) : 0;
+}
+
+/** Tipo di turno rispetto agli Orari di esercizio del giorno: Apertura, Chiusura, entrambe, oppure Centrale. */
+function shiftKind(startMin: number, endMin: number, hours: IcsHours | undefined): string {
+  if (!hours) return "Turno";
+  if (endMin <= startMin) endMin += 1440; // turno oltre mezzanotte
+  const opens = startMin <= hours.open;
+  const closes = endMin >= hours.close;
+  return opens && closes ? "Apertura e chiusura" : opens ? "Apertura" : closes ? "Chiusura" : "Centrale";
+}
+
 const slug = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "").toLowerCase() || "turni";
 
 /** Durata per le note: sotto l'ora "30 min", altrimenti nel formato dell'app ("2h", "2h30"). */
@@ -60,7 +86,7 @@ function overtimeNote(d: NonNullable<DayData>): string | null {
 }
 
 /** Evento di un giorno, come righe iCalendar; array vuoto se non c'è nulla da segnare. */
-function dayEvent(person: string, { date, data }: IcsDay, stamp: string): string[] {
+function dayEvent(person: string, { date, data }: IcsDay, stamp: string, hours: IcsHours | undefined): string[] {
   if (!data) return [];
   const lines = ["BEGIN:VEVENT", `UID:turni-${dateStr(date)}-${slug(person)}@calendario-turni`, `DTSTAMP:${stamp}`];
   const notes: string[] = [];
@@ -69,7 +95,7 @@ function dayEvent(person: string, { date, data }: IcsDay, stamp: string): string
     // Ferie o ROL sull'intero turno, o ore sole in un giorno vuoto: evento a giornata intera
     const next = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1);
     lines.push(`DTSTART;VALUE=DATE:${dateStr(date)}`, `DTEND;VALUE=DATE:${dateStr(next)}`);
-    lines.push(`SUMMARY:${leave.kind === "ferie" ? "Ferie" : "ROL"}`);
+    lines.push(`SUMMARY:${leave.kind === "ferie" ? "Ferie" : "ROL"} ${hoursLabel(leave.min)}`);
     notes.push(`Ore: ${durLabel(leave.min)}`);
   } else {
     let start: string;
@@ -85,7 +111,12 @@ function dayEvent(person: string, { date, data }: IcsDay, stamp: string): string
     const e = toMinutes(end);
     if (s === null || e === null) return [];
     lines.push(`DTSTART:${dateTimeStr(date, s)}`, `DTEND:${dateTimeStr(date, e <= s ? e + 1440 : e)}`);
-    lines.push("SUMMARY:Turno");
+    // Titolo: tipo di turno (con lo straordinario si considera l'orario complessivo) e ore lavorate
+    const { start: allStart, end: allEnd } = overallTimes(data);
+    const aS = toMinutes(allStart);
+    const aE = toMinutes(allEnd);
+    const kind = aS !== null && aE !== null ? shiftKind(aS, aE, hours) : "Turno";
+    lines.push(`SUMMARY:${kind} ${hoursLabel(workedMinutes(data.total))}`);
     notes.push(`Ore lavorate: ${data.total ?? "0h"}`);
     if (leave) notes.push(`ROL ${durLabel(leave.min)} ${leave.side === "start" ? "a inizio" : "a fine"} turno`);
     const ot = overtimeNote(data);
@@ -110,12 +141,24 @@ export function countIcsEvents(days: IcsDay[]): number {
 }
 
 /** Contenuto del file .ics per i giorni dati (di solito un mese). */
-export function buildMonthIcs(person: string, days: IcsDay[], now: Date = new Date()): string {
+export function buildMonthIcs(person: string, days: IcsDay[], hours: IcsHours[] = [], now: Date = new Date()): string {
   const stamp = stampStr(now);
   const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Calendario Turni//IT", "CALSCALE:GREGORIAN", "METHOD:PUBLISH", "X-WR-CALNAME:Turni"];
-  for (const day of days) lines.push(...dayEvent(person, day, stamp));
+  for (const day of days) lines.push(...dayEvent(person, day, stamp, hours[weekdayIndex(day.date)]));
   lines.push("END:VCALENDAR");
   return lines.map(fold).join("\r\n") + "\r\n";
+}
+
+/**
+ * Apre il file direttamente (in Safari, su iPhone, propone "Aggiungi tutti gli eventi"); se il browser
+ * non lo permette ripiega sul foglio di condivisione / download.
+ */
+export async function openIcs(text: string, filename: string): Promise<void> {
+  const blob = new Blob([text], { type: "text/calendar;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const win = window.open(url, "_blank");
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  if (!win) await saveIcs(text, filename);
 }
 
 /** Salva il file: sui telefoni apre il foglio di condivisione (con "Calendario" tra le scelte), altrimenti lo scarica. */

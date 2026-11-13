@@ -30,7 +30,7 @@ import { cn } from "@/lib/utils";
 import { useThemePref, type ThemePref } from "@/lib/theme";
 import { DayEditPanels } from "@/components/shift-editor";
 import { buildBackup, countOverrides, mergeOverrides, parseBackup, saveJson } from "@/lib/backup";
-import { buildMonthIcs, countIcsEvents, openIcs } from "@/lib/month-ics";
+import { buildMonthIcs, countIcsEvents, saveIcs } from "@/lib/month-ics";
 import { buildMonthPdf, buildMonthReport, savePdf, type MonthRow } from "@/lib/month-report";
 import { fileAnchor, loadFiles, saveFiles, trimFiles, type FileStore } from "@/lib/files";
 import {
@@ -661,6 +661,8 @@ function Index() {
   // Esito dell'ultima esportazione/importazione delle modifiche, mostrato sotto i pulsanti.
   const [backupNote, setBackupNote] = useState<{ title: string; body: string } | null>(null);
   const backupRef = useRef<HTMLInputElement>(null);
+  // Pop-up di spiegazione che precede la generazione del file per il calendario.
+  const [calendarAsk, setCalendarAsk] = useState(false);
   const [monthMenuOpen, setMonthMenuOpen] = useState(false);
   const [popupDate, setPopupDate] = useState<Date | null>(null);
   // Tessera di cui è aperto il riquadro "Turno originale" (toccando il pallino): "settimana-giorno".
@@ -1233,10 +1235,16 @@ function Index() {
       setBackupNote({ title: "Nessun evento da esportare", body: "In questo mese non ci sono turni, ferie o ROL." });
       return;
     }
+    setCalendarAsk(true);
+  };
+  // "OK" nel pop-up: genera davvero il file .ics.
+  const confirmCalendar = () => {
+    setCalendarAsk(false);
+    if (!hasMonth) return;
     setSettingsOpen(false);
     setOvertimeOpen(false);
     const safeName = selected.replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "") || "turni";
-    void openIcs(buildMonthIcs(selected, monthDays, hours), `Turni-${safeName}-${format(month!, "yyyy-MM")}.ics`);
+    void saveIcs(buildMonthIcs(selected, monthDays, hours), `Turni-${safeName}-${format(month!, "yyyy-MM")}.ics`);
   };
   // Esporta le modifiche di tutti i mesi in un file; sui telefoni si apre la condivisione.
   const exportBackup = () => {
@@ -2338,6 +2346,32 @@ function Index() {
           </p>
         )}
       </div>
+
+      <Dialog open={calendarAsk} onOpenChange={setCalendarAsk}>
+        <DialogContent
+          className="top-[max(1rem,calc(50dvh-380px))] max-h-[calc(100dvh-2rem)] w-[360px] max-w-[calc(100vw-1rem)] translate-y-0 gap-3.5 border-0 bg-transparent px-2 pb-3 pt-0 shadow-none sm:rounded-none"
+          showCloseButton={false}
+          onOpenAutoFocus={(e) => e.preventDefault()}
+        >
+          <div className="ios-card glass rounded-[28px] p-5">
+            <DialogTitle className="text-lg font-semibold leading-tight tracking-normal">Esporta nel calendario</DialogTitle>
+            <p className="mt-2.5 text-sm leading-snug text-muted-foreground">
+              Verrà generato un file .ics con turni, ferie e ROL di {month ? dateCapitalized(month, "MMMM yyyy") : ""}.
+            </p>
+            <p className="mt-2.5 text-sm leading-snug text-muted-foreground">
+              Invialo per mail: aprendolo dall’allegato verrà proposto di aggiungere tutti gli eventi al calendario
+            </p>
+            <button
+              type="button"
+              onClick={confirmCalendar}
+              className="mt-4 flex min-h-[46px] w-full items-center justify-center rounded-[14px] text-[15px] font-semibold"
+              style={{ backgroundColor: accent, color: contrastTextColor(accent) }}
+            >
+              OK
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!dayPopup} onOpenChange={(o) => !o && setPopupDate(null)}>
         <DialogContent

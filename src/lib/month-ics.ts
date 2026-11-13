@@ -149,18 +149,6 @@ export function buildMonthIcs(person: string, days: IcsDay[], hours: IcsHours[] 
   return lines.map(fold).join("\r\n") + "\r\n";
 }
 
-/**
- * Apre il file direttamente (in Safari, su iPhone, propone "Aggiungi tutti gli eventi"); se il browser
- * non lo permette ripiega sul foglio di condivisione / download.
- */
-export async function openIcs(text: string, filename: string): Promise<void> {
-  const blob = new Blob([text], { type: "text/calendar;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const win = window.open(url, "_blank");
-  setTimeout(() => URL.revokeObjectURL(url), 60000);
-  if (!win) await saveIcs(text, filename);
-}
-
 /** Salva il file: sui telefoni apre il foglio di condivisione (con "Calendario" tra le scelte), altrimenti lo scarica. */
 export async function saveIcs(text: string, filename: string): Promise<void> {
   const blob = new Blob([text], { type: "text/calendar" });
